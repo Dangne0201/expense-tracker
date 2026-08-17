@@ -64,9 +64,9 @@ namespace ExpenseTracker.WinForms
 
                     // Footer left: category controls
                     var footerLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
-                    btnLoadCategories = new Button { Text = "Load", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
-                    txtNewCategory = new TextBox { Width = 140, Margin = new Padding(6) };
-                    btnAddCategory = new Button { Text = "Add", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    btnLoadCategories = new Button { Text = "Load Categories", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
+                    txtNewCategory = new TextBox { Width = 220, Margin = new Padding(6), Height = 30 };
+                    btnAddCategory = new Button { Text = "Add Category", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
                     footerLeft.Controls.Add(btnLoadCategories);
                     footerLeft.Controls.Add(txtNewCategory);
                     footerLeft.Controls.Add(btnAddCategory);
@@ -114,22 +114,18 @@ namespace ExpenseTracker.WinForms
                     footerRightTable.Controls.Add(inputTable, 0, 0);
                     footerRightTable.SetColumnSpan(inputTable, 6);
 
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.None, Height = 48, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false, Anchor = AnchorStyles.Left };
-                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
-                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
-                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
-                    // Left-to-right order: Delete, Load, Add
-                    btnRow.Controls.Add(btnDeleteExpense);
-                    btnRow.Controls.Add(btnLoadExpenses);
-                    btnRow.Controls.Add(btnAddExpense);
+                    // Create fixed-size buttons and put each into its own footer column so all are visible
+                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6), Anchor = AnchorStyles.Left };
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6), Anchor = AnchorStyles.Left };
+                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6), Anchor = AnchorStyles.Left };
+
+                    footerRightTable.Controls.Add(btnDeleteExpense, 1, 1);
+                    footerRightTable.Controls.Add(btnLoadExpenses, 2, 1);
+                    footerRightTable.Controls.Add(btnAddExpense, 3, 1);
 
                     btnAddExpense.Click += (s, e) => AddExpense();
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
                     btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
-
-                    // Place the button row under the Amount column (column index 1) and span 3 columns so all buttons fit
-                    footerRightTable.Controls.Add(btnRow, 1, 1);
-                    footerRightTable.SetColumnSpan(btnRow, 3);
 
                     footerRight.Controls.Add(footerRightTable);
 
