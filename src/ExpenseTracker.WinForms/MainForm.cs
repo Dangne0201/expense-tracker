@@ -67,41 +67,48 @@ namespace ExpenseTracker.WinForms
                     // DataGridView fills the available area between label and input panel
                     dgvExpenses = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
 
-                    // Input area: use TableLayoutPanel for aligned label/control pairs, plus a button row
-                    var inputPanel = new Panel { Dock = DockStyle.Bottom, Height = 120 };
+                    // Input area: use a TableLayoutPanel as the container so rows stack predictably (inputs above, buttons below)
+                    var inputPanel = new TableLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, RowCount = 2, ColumnCount = 1 };
+                    inputPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    inputPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-                    var inputTable = new TableLayoutPanel { Dock = DockStyle.Top, Height = 64, ColumnCount = 6, RowCount = 1, Padding = new Padding(6) };
+                    var inputTable = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 6, RowCount = 1, Padding = new Padding(6) };
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Amount label
-                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140)); // Amount textbox
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); // Amount textbox
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Date label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Date picker
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Note label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // Note textbox (fill remaining)
 
-                    inputTable.Controls.Add(new Label { Text = "Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-                    txtAmount = new TextBox { Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+                    var lblAmount = new Label { Text = "Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(3, 8, 6, 3) };
+                    txtAmount = new TextBox { Width = 140, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
+
+                    var lblDate = new Label { Text = "Date", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
+                    dtpDate = new DateTimePicker { Width = 220, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
+
+                    var lblNote = new Label { Text = "Note", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
+                    txtNote = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
+
+                    inputTable.Controls.Add(lblAmount, 0, 0);
                     inputTable.Controls.Add(txtAmount, 1, 0);
-
-                    inputTable.Controls.Add(new Label { Text = "Date", AutoSize = true, Margin = new Padding(12, 8, 3, 3) }, 2, 0);
-                    dtpDate = new DateTimePicker { Width = 220, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm" };
+                    inputTable.Controls.Add(lblDate, 2, 0);
                     inputTable.Controls.Add(dtpDate, 3, 0);
-
-                    inputTable.Controls.Add(new Label { Text = "Note", AutoSize = true, Margin = new Padding(12, 8, 3, 3) }, 4, 0);
-                    txtNote = new TextBox { Width = 260, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+                    inputTable.Controls.Add(lblNote, 4, 0);
                     inputTable.Controls.Add(txtNote, 5, 0);
 
-                    // Button row below inputs
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
-                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
-                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
+                    // Button row below inputs — right aligned
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false, Anchor = AnchorStyles.Right };
+                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     btnRow.Controls.Add(btnAddExpense);
                     btnRow.Controls.Add(btnLoadExpenses);
 
                     btnAddExpense.Click += (s, e) => AddExpense();
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
 
-                    inputPanel.Controls.Add(btnRow);
-                    inputPanel.Controls.Add(inputTable);
+                    // Add controls to the inputPanel in correct order (inputs on top, buttons below)
+                    inputPanel.Controls.Add(inputTable, 0, 0);
+                    inputPanel.Controls.Add(btnRow, 0, 1);
 
                     // Add to pnlRight in proper order: label (top), dgv (fill), inputPanel (bottom)
                     pnlRight.Controls.Add(dgvExpenses);
