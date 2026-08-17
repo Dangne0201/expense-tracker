@@ -31,11 +31,7 @@ Thumbs.db
 Desktop.ini
 
 # Local DB and backups
-*.mdf
-*.ldf
-*.bak
-ExpenseDb.mdf
-ExpenseDb_log.ldf
+# (Removed mdf/ldf ignores to allow committing DB files per user request)
 
 # other
 .properties
