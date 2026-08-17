@@ -32,16 +32,16 @@ namespace ExpenseTracker.WinForms
                     // Make form scale properly on high-DPI screens
                     this.AutoScaleMode = AutoScaleMode.Dpi;
                     this.Font = SystemFonts.MessageBoxFont;
-                    Width = 1100;
+                    Width = 1300;
                     Height = 640;
-                    this.MinimumSize = new Size(1100, 640);
+                                        this.MinimumSize = new Size(1300, 640);
                     this.MaximumSize = this.MinimumSize; // lock size
                     this.FormBorderStyle = FormBorderStyle.FixedSingle;
                     this.MaximizeBox = false;
 
                     // Root layout: two columns (left: categories, right: expenses)
                     var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-                    root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+                    root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 560));
                     root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
                     Controls.Add(root);
 
