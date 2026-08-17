@@ -45,7 +45,7 @@ namespace ExpenseTracker.WinForms
                     var lblCat = new Label { Text = "Categories", Dock = DockStyle.Top, Height = 22 };
                     lstCategories = new ListBox { Dock = DockStyle.Fill }; // fills available space between label and bottom panel
 
-                    var leftBottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
+                    var leftBottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 80, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
                     btnLoadCategories = new Button { Text = "Load", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
                     txtNewCategory = new TextBox { Width = 150 };
                     btnAddCategory = new Button { Text = "Add Category", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
@@ -67,12 +67,11 @@ namespace ExpenseTracker.WinForms
                     // DataGridView fills the available area between label and input panel
                     dgvExpenses = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
 
-                    // Input area: use a TableLayoutPanel as the container so rows stack predictably (inputs above, buttons below)
-                    var inputPanel = new TableLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, RowCount = 2, ColumnCount = 1 };
-                    inputPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                    inputPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    // Input area: use a fixed-height Panel so left and right bottom areas reserve the same space
+                    var inputPanel = new Panel { Dock = DockStyle.Bottom, Height = 80 };
 
-                    var inputTable = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 6, RowCount = 1, Padding = new Padding(6) };
+                    // Inputs row (top of inputPanel)
+                    var inputTable = new TableLayoutPanel { Dock = DockStyle.Top, Height = 40, AutoSize = false, ColumnCount = 6, RowCount = 1, Padding = new Padding(6) };
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Amount label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); // Amount textbox
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Date label
@@ -96,8 +95,8 @@ namespace ExpenseTracker.WinForms
                     inputTable.Controls.Add(lblNote, 4, 0);
                     inputTable.Controls.Add(txtNote, 5, 0);
 
-                    // Button row below inputs — right aligned
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false, Anchor = AnchorStyles.Right };
+                    // Button row below inputs — right-aligned by using RightToLeft flow
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(6), WrapContents = false }; 
                     btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     btnRow.Controls.Add(btnAddExpense);
@@ -107,8 +106,8 @@ namespace ExpenseTracker.WinForms
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
 
                     // Add controls to the inputPanel in correct order (inputs on top, buttons below)
-                    inputPanel.Controls.Add(inputTable, 0, 0);
-                    inputPanel.Controls.Add(btnRow, 0, 1);
+                    inputPanel.Controls.Add(inputTable);
+                    inputPanel.Controls.Add(btnRow);
 
                     // Add to pnlRight in proper order: label (top), dgv (fill), inputPanel (bottom)
                     pnlRight.Controls.Add(dgvExpenses);
