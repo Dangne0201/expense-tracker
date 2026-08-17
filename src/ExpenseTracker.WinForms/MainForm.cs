@@ -32,9 +32,9 @@ namespace ExpenseTracker.WinForms
                     // Make form scale properly on high-DPI screens
                     this.AutoScaleMode = AutoScaleMode.Dpi;
                     this.Font = SystemFonts.MessageBoxFont;
-                    Width = 920;
+                    Width = 1000;
                     Height = 640;
-                    this.MinimumSize = new Size(920, 640);
+                    this.MinimumSize = new Size(1000, 640);
 
                     // Root layout: two columns (left: categories, right: expenses)
                     var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -85,10 +85,10 @@ namespace ExpenseTracker.WinForms
                     txtAmount = new TextBox { Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
 
                     var lblDate = new Label { Text = "Date", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
-                    dtpDate = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
+                    dtpDate = new DateTimePicker { Width = 160, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
 
                     var lblNote = new Label { Text = "Note", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
-                    txtNote = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), Width = 220 };
+                    txtNote = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), Width = 320 };
 
                     inputTable.Controls.Add(lblAmount, 0, 0);
                     inputTable.Controls.Add(txtAmount, 1, 0);
@@ -97,21 +97,37 @@ namespace ExpenseTracker.WinForms
                     inputTable.Controls.Add(lblNote, 4, 0);
                     inputTable.Controls.Add(txtNote, 5, 0);
 
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(6), WrapContents = false };
-                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
-                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    // Create a footerRightTable so the button row can be positioned under the Amount column
+                    var footerRightTable = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 6 };
+                    footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+                    footerRightTable.Controls.Add(inputTable, 0, 0);
+                    footerRightTable.SetColumnSpan(inputTable, 6);
+
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Left, Height = 48, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
                     btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
-                    // Add in logical order (right to left flow so Add appears last on the right)
-                    btnRow.Controls.Add(btnAddExpense);
-                    btnRow.Controls.Add(btnLoadExpenses);
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    // Left-to-right order: Delete, Load, Add
                     btnRow.Controls.Add(btnDeleteExpense);
+                    btnRow.Controls.Add(btnLoadExpenses);
+                    btnRow.Controls.Add(btnAddExpense);
 
                     btnAddExpense.Click += (s, e) => AddExpense();
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
                     btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
 
-                    footerRight.Controls.Add(btnRow);
-                    footerRight.Controls.Add(inputTable);
+                    footerRightTable.Controls.Add(btnRow, 0, 1);
+                    footerRightTable.SetColumnSpan(btnRow, 2);
+
+                    footerRight.Controls.Add(footerRightTable);
 
                     // Assemble panels into root with footer row
                     // root has 2 rows: 0 = main area, 1 = footer fixed height
