@@ -105,9 +105,9 @@ namespace ExpenseTracker.WinForms
                     footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                     footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                     footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Delete column
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180)); // Load column
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140)); // Add column
                     footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                     footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -115,9 +115,9 @@ namespace ExpenseTracker.WinForms
                     footerRightTable.SetColumnSpan(inputTable, 6);
 
                     // Create fixed-size buttons and put each into its own footer column so all are visible
-                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 160, Height = 44, Padding = new Padding(6), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter };
-                                        var btnLoadExpenses = new Button { Text = "Load", AutoSize = false, Width = 140, Height = 44, Padding = new Padding(6), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter };
-                                        btnAddExpense = new Button { Text = "Add", AutoSize = false, Width = 140, Height = 44, Padding = new Padding(6), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter };
+                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 220, Height = 44, Padding = new Padding(4), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = false, Width = 180, Height = 44, Padding = new Padding(4), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
+                    btnAddExpense = new Button { Text = "Add", AutoSize = false, Width = 140, Height = 44, Padding = new Padding(4), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
 
                     footerRightTable.Controls.Add(btnDeleteExpense, 1, 1);
                     footerRightTable.Controls.Add(btnLoadExpenses, 2, 1);
