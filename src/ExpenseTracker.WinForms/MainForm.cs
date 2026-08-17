@@ -32,8 +32,9 @@ namespace ExpenseTracker.WinForms
                     // Make form scale properly on high-DPI screens
                     this.AutoScaleMode = AutoScaleMode.Dpi;
                     this.Font = SystemFonts.MessageBoxFont;
-                    Width = 900;
-                    Height = 600;
+                    Width = 920;
+                    Height = 640;
+                    this.MinimumSize = new Size(920, 640);
 
                     // Root layout: two columns (left: categories, right: expenses)
                     var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -76,7 +77,7 @@ namespace ExpenseTracker.WinForms
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Amount label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); // Amount textbox
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Date label
-                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180)); // Date picker (smaller)
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); // Date picker (smaller)
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Note label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // Note textbox (fill remaining)
 
@@ -87,7 +88,7 @@ namespace ExpenseTracker.WinForms
                     dtpDate = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
 
                     var lblNote = new Label { Text = "Note", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
-                    txtNote = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
+                    txtNote = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), Width = 220 };
 
                     inputTable.Controls.Add(lblAmount, 0, 0);
                     inputTable.Controls.Add(txtAmount, 1, 0);
@@ -96,10 +97,11 @@ namespace ExpenseTracker.WinForms
                     inputTable.Controls.Add(lblNote, 4, 0);
                     inputTable.Controls.Add(txtNote, 5, 0);
 
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(6), WrapContents = false };
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(6), WrapContents = false };
                     btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    // Add in logical order (right to left flow so Add appears last on the right)
                     btnRow.Controls.Add(btnAddExpense);
                     btnRow.Controls.Add(btnLoadExpenses);
                     btnRow.Controls.Add(btnDeleteExpense);
@@ -108,14 +110,14 @@ namespace ExpenseTracker.WinForms
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
                     btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
 
-                    footerRight.Controls.Add(inputTable);
                     footerRight.Controls.Add(btnRow);
+                    footerRight.Controls.Add(inputTable);
 
                     // Assemble panels into root with footer row
                     // root has 2 rows: 0 = main area, 1 = footer fixed height
                     root.RowCount = 2;
                     root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+                    root.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
 
                     pnlLeft.Controls.Add(lstCategories);
                     pnlLeft.Controls.Add(lblCat);
