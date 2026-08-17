@@ -1,0 +1,41 @@
+# .gitignore cho dự án .NET
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+
+# EF Migrations snapshot or generated files (tùy theo project)
+**/Migrations/
+
+# Docker env file (chứa secrets)
+.env
+
+# Visual Studio Code settings
+.local.settings.json
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Local DB and backups
+*.mdf
+*.ldf
+*.bak
+ExpenseDb.mdf
+ExpenseDb_log.ldf
+
+# other
+.properties
