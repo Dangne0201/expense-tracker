@@ -32,9 +32,12 @@ namespace ExpenseTracker.WinForms
                     // Make form scale properly on high-DPI screens
                     this.AutoScaleMode = AutoScaleMode.Dpi;
                     this.Font = SystemFonts.MessageBoxFont;
-                    Width = 1000;
+                    Width = 1100;
                     Height = 640;
-                    this.MinimumSize = new Size(1000, 640);
+                    this.MinimumSize = new Size(1100, 640);
+                    this.MaximumSize = this.MinimumSize; // lock size
+                    this.FormBorderStyle = FormBorderStyle.FixedSingle;
+                    this.MaximizeBox = false;
 
                     // Root layout: two columns (left: categories, right: expenses)
                     var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -111,10 +114,10 @@ namespace ExpenseTracker.WinForms
                     footerRightTable.Controls.Add(inputTable, 0, 0);
                     footerRightTable.SetColumnSpan(inputTable, 6);
 
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Left, Height = 48, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
-                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
-                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
-                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.None, Height = 48, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false, Anchor = AnchorStyles.Left };
+                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
+                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = false, Width = 120, Height = 36, Padding = new Padding(6), Margin = new Padding(6) };
                     // Left-to-right order: Delete, Load, Add
                     btnRow.Controls.Add(btnDeleteExpense);
                     btnRow.Controls.Add(btnLoadExpenses);
@@ -124,8 +127,9 @@ namespace ExpenseTracker.WinForms
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
                     btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
 
-                    footerRightTable.Controls.Add(btnRow, 0, 1);
-                    footerRightTable.SetColumnSpan(btnRow, 2);
+                    // Place the button row under the Amount column (column index 1) and span 3 columns so all buttons fit
+                    footerRightTable.Controls.Add(btnRow, 1, 1);
+                    footerRightTable.SetColumnSpan(btnRow, 3);
 
                     footerRight.Controls.Add(footerRightTable);
 
