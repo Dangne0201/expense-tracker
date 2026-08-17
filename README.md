@@ -1,9 +1,8 @@
 Expense Tracker - Hướng dẫn nhanh (WinForms chính, LocalDB)
 
 Tình trạng hiện tại
-- Phiên bản hiện tại tập trung vào WinForms desktop app (src/ExpenseTracker.WinForms). API (ASP.NET Core) đã được loại bỏ khỏi repository theo yêu cầu.
+- Phiên bản hiện tại tập trung vào WinForms desktop app (src/ExpenseTracker.WinForms).
 - Database vật lý (LocalDB .mdf/.ldf) đã được commit vào thư mục /data trong repo để tiện di chuyển giữa máy. (Lưu ý: commit file DB có thể làm tăng kích thước repo.)
-- Migrations EF đã được loại bỏ vì repo hiện chứa file database thực tế.
 
 Yêu cầu tối thiểu
 - .NET SDK (đã thử nghiệm với .NET 10)
@@ -45,7 +44,3 @@ File & thư mục quan trọng
 - .gitignore  — hiện cho phép file DB trong /data (theo lựa chọn của bạn)
 - LEARNING_PLAN.md, README.md  — tài liệu học tập và hướng dẫn
 
-Muốn làm gì tiếp theo?
-- Tôi có thể thêm scripts để attach DB tự động (PowerShell) và chạy WinForms bằng 1 lệnh.
-- Tôi có thể cập nhật README thêm lệnh chi tiết tuỳ theo đường dẫn repo của bạn.
-- Hoặc dừng ở đây nếu bạn đã rõ. Xin cho biết lựa chọn.

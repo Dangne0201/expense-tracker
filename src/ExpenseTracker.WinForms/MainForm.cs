@@ -2,29 +2,35 @@ using System;
 using System.Data;
 using System.Windows.Forms;
 using System.Drawing;
+using System.IO;
+using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.WinForms
 {
     public class MainForm : Form
     {
-        private readonly string _conn = @"Server=(localdb)\\MSSQLLocalDB;Database=ExpenseDb;Trusted_Connection=True;";
-        private ListBox lstCategories;
-        private Button btnLoadCategories;
-        private TextBox txtNewCategory;
-        private Button btnAddCategory;
+        private string _conn;
+                private readonly string _connPrimary = @"Server=(localdb)\\MSSQLLocalDB;Database=ExpenseDb;Trusted_Connection=True;";
+                private readonly string _connAttachTemplate = @"Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename={0};Integrated Security=True;Connect Timeout=30;";
 
-        private DataGridView dgvExpenses;
-        private TextBox txtAmount;
-        private DateTimePicker dtpDate;
-        private TextBox txtNote;
-        private Button btnAddExpense;
-        private Button btnDeleteExpense;
+                private ListBox lstCategories;
+                private Button btnLoadCategories;
+                private TextBox txtNewCategory;
+                private Button btnAddCategory;
 
-        public MainForm()
-        {
-            InitializeComponents();
-        }
+                private DataGridView dgvExpenses;
+                private TextBox txtAmount;
+                private DateTimePicker dtpDate;
+                private TextBox txtNote;
+                private Button btnAddExpense;
+                private Button btnDeleteExpense;
+
+                public MainForm()
+                {
+                    EnsureDatabaseAvailable();
+                    InitializeComponents();
+                }
 
         private void InitializeComponents()
                 {
@@ -64,9 +70,9 @@ namespace ExpenseTracker.WinForms
 
                     // Footer left: category controls
                     var footerLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
-                    btnLoadCategories = new Button { Text = "Load", AutoSize = false, Width = 160, Height = 44, Padding = new Padding(6), Margin = new Padding(6), TextAlign = ContentAlignment.MiddleCenter };
-                                        txtNewCategory = new TextBox { Width = 240, Margin = new Padding(6), Height = 30 };
-                                        btnAddCategory = new Button { Text = "Add", AutoSize = false, Width = 120, Height = 44, Padding = new Padding(6), Margin = new Padding(6), TextAlign = ContentAlignment.MiddleCenter };
+                    btnLoadCategories = new Button { Text = "Load", AutoSize = false, Width = 140, Height = 44, Padding = new Padding(6), Margin = new Padding(12), TextAlign = ContentAlignment.MiddleCenter };
+                                        txtNewCategory = new TextBox { Width = 200, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
+                                        btnAddCategory = new Button { Text = "Add", AutoSize = false, Width = 140, Height = 44, Padding = new Padding(6), Margin = new Padding(12), TextAlign = ContentAlignment.MiddleCenter };
                     footerLeft.Controls.Add(btnLoadCategories);
                     footerLeft.Controls.Add(txtNewCategory);
                     footerLeft.Controls.Add(btnAddCategory);
@@ -104,20 +110,21 @@ namespace ExpenseTracker.WinForms
                     var footerRightTable = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 6 };
                     footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                     footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    footerRightTable.ColumnStyles.Clear();
                     footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Delete column
-                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180)); // Load column
-                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140)); // Add column
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // button 1
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // button 2
+                    footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // button 3
                     footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                     footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
                     footerRightTable.Controls.Add(inputTable, 0, 0);
                     footerRightTable.SetColumnSpan(inputTable, 6);
 
-                    // Create fixed-size buttons and put each into its own footer column so all are visible
-                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 220, Height = 44, Padding = new Padding(4), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
-                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = false, Width = 180, Height = 44, Padding = new Padding(4), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
-                    btnAddExpense = new Button { Text = "Add", AutoSize = false, Width = 140, Height = 44, Padding = new Padding(4), Margin = new Padding(6), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
+                    // Create fixed-size buttons (200x44) and put each into its own footer column so all are visible and spaced
+                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = false, Width = 200, Height = 44, Padding = new Padding(4), Margin = new Padding(12), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = false, Width = 200, Height = 44, Padding = new Padding(4), Margin = new Padding(12), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
+                    btnAddExpense = new Button { Text = "Add Expenses", AutoSize = false, Width = 200, Height = 44, Padding = new Padding(4), Margin = new Padding(12), Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleCenter, UseCompatibleTextRendering = true };
 
                     footerRightTable.Controls.Add(btnDeleteExpense, 1, 1);
                     footerRightTable.Controls.Add(btnLoadExpenses, 2, 1);
@@ -147,24 +154,130 @@ namespace ExpenseTracker.WinForms
                     root.Controls.Add(footerRight, 1, 1);
                 }
 
-        private void LoadCategories()
+        private void EnsureDatabaseAvailable()
         {
-            try
+            // Prefer using the repository data\ExpenseDb.mdf if present (make behavior deterministic)
+            var mdf = FindDataMdf();
+            if (!string.IsNullOrEmpty(mdf))
             {
-                using var conn = new SqlConnection(_conn);
-                using var cmd = new SqlCommand("SELECT Id, Name FROM Categories ORDER BY Name", conn);
-                var dt = new DataTable();
-                using var da = new SqlDataAdapter(cmd);
-                da.Fill(dt);
-                lstCategories.DisplayMember = "Name";
-                lstCategories.ValueMember = "Id";
-                lstCategories.DataSource = dt;
+                // If the MDF is located at ...\data\ExpenseDb.mdf, set |DataDirectory| to the repo root (parent of data)
+                var dataFolder = Path.GetDirectoryName(mdf); // ...\data
+                var repoRoot = Directory.GetParent(dataFolder)?.FullName ?? dataFolder;
+                AppDomain.CurrentDomain.SetData("DataDirectory", repoRoot);
+
+                var attachConn = $"Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\\data\\ExpenseDb.mdf;Integrated Security=True;Connect Timeout=30;";
+
+                // Try open with attach (and try starting LocalDB if necessary)
+                if (TryOpenConnection(attachConn))
+                {
+                    _conn = attachConn;
+                    return;
+                }
+
+                try { StartLocalDbInstance(); } catch { }
+
+                if (TryOpenConnection(attachConn))
+                {
+                    _conn = attachConn;
+                    return;
+                }
             }
-            catch (Exception ex)
+
+            // If repository MDF not found or attach failed, fallback to instance-based connection
+            try { StartLocalDbInstance(); } catch { }
+            if (TryOpenConnection(_connPrimary))
             {
-                MessageBox.Show("LoadCategories error: " + ex.Message);
+                _conn = _connPrimary;
+                return;
             }
+
+            // As a last attempt, if an MDF exists somewhere else, try full-path attach
+            var fullMdf = FindDataMdf();
+            if (!string.IsNullOrEmpty(fullMdf))
+            {
+                var attachFull = string.Format(_connAttachTemplate, fullMdf);
+                if (TryOpenConnection(attachFull))
+                {
+                    _conn = attachFull;
+                    return;
+                }
+            }
+
+            _conn = _connPrimary;
+            MessageBox.Show("Could not automatically connect to LocalDB. Please ensure MSSQLLocalDB is installed and running (run 'sqllocaldb start MSSQLLocalDB'), or place data\\ExpenseDb.mdf next to the app and try again.");
         }
+
+                private bool TryOpenConnection(string connStr)
+                {
+                    try
+                    {
+                        using var c = new SqlConnection(connStr);
+                        c.Open();
+                        c.Close();
+                        return true;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+
+                private void StartLocalDbInstance()
+                {
+                    // Run 'sqllocaldb start MSSQLLocalDB' if available
+                    try
+                    {
+                        var psi = new ProcessStartInfo("sqllocaldb", "start MSSQLLocalDB")
+                        {
+                            CreateNoWindow = true,
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true
+                        };
+                        using var p = Process.Start(psi);
+                        if (p != null)
+                        {
+                            p.WaitForExit(5000);
+                        }
+                    }
+                    catch
+                    {
+                        // ignore failures; TryOpenConnection will catch
+                    }
+                }
+
+                private string FindDataMdf()
+                {
+                    var dir = AppDomain.CurrentDomain.BaseDirectory;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        var candidate = Path.GetFullPath(Path.Combine(dir, "data", "ExpenseDb.mdf"));
+                        if (File.Exists(candidate)) return candidate;
+                        var parent = Directory.GetParent(dir);
+                        if (parent == null) break;
+                        dir = parent.FullName;
+                    }
+                    return null;
+                }
+
+                private void LoadCategories()
+                {
+                    try
+                    {
+                        using var conn = new SqlConnection(_conn);
+                        using var cmd = new SqlCommand("SELECT Id, Name FROM Categories ORDER BY Name", conn);
+                        var dt = new DataTable();
+                        using var da = new SqlDataAdapter(cmd);
+                        da.Fill(dt);
+                        lstCategories.DisplayMember = "Name";
+                        lstCategories.ValueMember = "Id";
+                        lstCategories.DataSource = dt;
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("LoadCategories error: " + ex.Message);
+                    }
+                }
 
         private void AddCategory()
         {
