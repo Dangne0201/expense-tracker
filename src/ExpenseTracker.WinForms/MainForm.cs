@@ -26,85 +26,92 @@ namespace ExpenseTracker.WinForms
         }
 
         private void InitializeComponents()
-        {
-            Text = "Expense Tracker (WinForms)";
-                        // Make form scale properly on high-DPI screens
-                        this.AutoScaleMode = AutoScaleMode.Dpi;
-                        this.Font = SystemFonts.MessageBoxFont;
-                        Width = 900;
-                        Height = 600;
+                {
+                    Text = "Expense Tracker (WinForms)";
+                    // Make form scale properly on high-DPI screens
+                    this.AutoScaleMode = AutoScaleMode.Dpi;
+                    this.Font = SystemFonts.MessageBoxFont;
+                    Width = 900;
+                    Height = 600;
 
-            // Left panel - categories
-            var pnlLeft = new Panel { Left = 10, Top = 10, Width = 280, Height = 540 };
-            var lblCat = new Label { Text = "Categories", Left = 10, Top = 10, Width = 200 };
-            lstCategories = new ListBox { Left = 10, Top = 35, Width = 260, Height = 300 };
-            btnLoadCategories = new Button { Text = "Load", Left = 10, Top = 345 };
-                        btnLoadCategories.AutoSize = true;
-                        btnLoadCategories.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                        btnLoadCategories.Padding = new Padding(6);
-                        btnLoadCategories.MinimumSize = new Size(90, 30);
-                        var szLoad = TextRenderer.MeasureText(btnLoadCategories.Text, this.Font);
-                        btnLoadCategories.Size = new Size(Math.Max(btnLoadCategories.MinimumSize.Width, szLoad.Width + 20), Math.Max(btnLoadCategories.MinimumSize.Height, szLoad.Height + 10));
-                        txtNewCategory = new TextBox { Left = 10, Top = 380, Width = 130 };
-                        btnAddCategory = new Button { Text = "Add Category", Left = 150, Top = 378 };
-                        btnAddCategory.AutoSize = true;
-                        btnAddCategory.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                        btnAddCategory.Padding = new Padding(6);
-                        btnAddCategory.MinimumSize = new Size(110, 30);
-                        var szAddCat = TextRenderer.MeasureText(btnAddCategory.Text, this.Font);
-                        btnAddCategory.Size = new Size(Math.Max(btnAddCategory.MinimumSize.Width, szAddCat.Width + 20), Math.Max(btnAddCategory.MinimumSize.Height, szAddCat.Height + 10));
+                    // Root layout: two columns (left: categories, right: expenses)
+                    var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+                    root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+                    root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                    Controls.Add(root);
 
-            btnLoadCategories.Click += (s, e) => LoadCategories();
-            btnAddCategory.Click += (s, e) => AddCategory();
+                    // Left panel - categories (uses Dock/Filling layout)
+                    var pnlLeft = new Panel { Dock = DockStyle.Fill };
+                    var lblCat = new Label { Text = "Categories", Dock = DockStyle.Top, Height = 22 };
+                    lstCategories = new ListBox { Dock = DockStyle.Fill }; // fills available space between label and bottom panel
 
-            pnlLeft.Controls.Add(lblCat);
-            pnlLeft.Controls.Add(lstCategories);
-            pnlLeft.Controls.Add(btnLoadCategories);
-            pnlLeft.Controls.Add(txtNewCategory);
-            pnlLeft.Controls.Add(btnAddCategory);
-            Controls.Add(pnlLeft);
+                    var leftBottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
+                    btnLoadCategories = new Button { Text = "Load", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
+                    txtNewCategory = new TextBox { Width = 150 };
+                    btnAddCategory = new Button { Text = "Add Category", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
+                    leftBottom.Controls.Add(btnLoadCategories);
+                    leftBottom.Controls.Add(txtNewCategory);
+                    leftBottom.Controls.Add(btnAddCategory);
 
-            // Right panel - expenses
-            var pnlRight = new Panel { Left = 300, Top = 10, Width = 580, Height = 540 };
-            var lblExp = new Label { Text = "Expenses", Left = 10, Top = 10, Width = 200 };
-            dgvExpenses = new DataGridView { Left = 10, Top = 35, Width = 560, Height = 350, ReadOnly = true, AllowUserToAddRows = false };
+                    btnLoadCategories.Click += (s, e) => LoadCategories();
+                    btnAddCategory.Click += (s, e) => AddCategory();
 
-            var lblAmount = new Label { Text = "Amount", Left = 10, Top = 400 };
-            txtAmount = new TextBox { Left = 80, Top = 396, Width = 100 };
-            var lblDate = new Label { Text = "Date", Left = 200, Top = 400 };
-            dtpDate = new DateTimePicker { Left = 240, Top = 396, Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm" };
-            var lblNote = new Label { Text = "Note", Left = 10, Top = 430 };
-            txtNote = new TextBox { Left = 80, Top = 426, Width = 340 };
-            btnAddExpense = new Button { Text = "Add Expense", Left = 440, Top = 426 };
-                        btnAddExpense.AutoSize = true;
-                        btnAddExpense.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                        btnAddExpense.Padding = new Padding(6);
-                        btnAddExpense.MinimumSize = new Size(110, 30);
-                        var szAddExp = TextRenderer.MeasureText(btnAddExpense.Text, this.Font);
-                        btnAddExpense.Size = new Size(Math.Max(btnAddExpense.MinimumSize.Width, szAddExp.Width + 20), Math.Max(btnAddExpense.MinimumSize.Height, szAddExp.Height + 10));
-                        var btnLoadExpenses = new Button { Text = "Load Expenses", Left = 10, Top = 470 };
-                        btnLoadExpenses.AutoSize = true;
-                        btnLoadExpenses.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                        btnLoadExpenses.Padding = new Padding(6);
-                        btnLoadExpenses.MinimumSize = new Size(110, 30);
-                        var szLoadExp = TextRenderer.MeasureText(btnLoadExpenses.Text, this.Font);
-                        btnLoadExpenses.Size = new Size(Math.Max(btnLoadExpenses.MinimumSize.Width, szLoadExp.Width + 20), Math.Max(btnLoadExpenses.MinimumSize.Height, szLoadExp.Height + 10));
+                    pnlLeft.Controls.Add(lstCategories);
+                    pnlLeft.Controls.Add(lblCat);
+                    pnlLeft.Controls.Add(leftBottom);
 
-            btnAddExpense.Click += (s, e) => AddExpense();
-            btnLoadExpenses.Click += (s, e) => LoadExpenses();
+                    // Right panel - expenses (vertical layout)
+                    var pnlRight = new Panel { Dock = DockStyle.Fill };
+                    var lblExp = new Label { Text = "Expenses", Dock = DockStyle.Top, Height = 22 };
 
-            pnlRight.Controls.Add(lblExp);
-            pnlRight.Controls.Add(dgvExpenses);
-            pnlRight.Controls.Add(lblAmount);
-            pnlRight.Controls.Add(txtAmount);
-            pnlRight.Controls.Add(lblDate);
-            pnlRight.Controls.Add(dtpDate);
-            pnlRight.Controls.Add(lblNote);
-            pnlRight.Controls.Add(txtNote);
-            pnlRight.Controls.Add(btnAddExpense);
-            pnlRight.Controls.Add(btnLoadExpenses);
-            Controls.Add(pnlRight);
-        }
+                    // DataGridView fills the available area between label and input panel
+                    dgvExpenses = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
+
+                    // Input area: use TableLayoutPanel for aligned label/control pairs, plus a button row
+                    var inputPanel = new Panel { Dock = DockStyle.Bottom, Height = 120 };
+
+                    var inputTable = new TableLayoutPanel { Dock = DockStyle.Top, Height = 64, ColumnCount = 6, RowCount = 1, Padding = new Padding(6) };
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Amount label
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140)); // Amount textbox
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Date label
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Date picker
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Note label
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // Note textbox (fill remaining)
+
+                    inputTable.Controls.Add(new Label { Text = "Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+                    txtAmount = new TextBox { Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+                    inputTable.Controls.Add(txtAmount, 1, 0);
+
+                    inputTable.Controls.Add(new Label { Text = "Date", AutoSize = true, Margin = new Padding(12, 8, 3, 3) }, 2, 0);
+                    dtpDate = new DateTimePicker { Width = 220, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm" };
+                    inputTable.Controls.Add(dtpDate, 3, 0);
+
+                    inputTable.Controls.Add(new Label { Text = "Note", AutoSize = true, Margin = new Padding(12, 8, 3, 3) }, 4, 0);
+                    txtNote = new TextBox { Width = 260, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+                    inputTable.Controls.Add(txtNote, 5, 0);
+
+                    // Button row below inputs
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 40, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
+                    btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
+                    var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
+                    btnRow.Controls.Add(btnAddExpense);
+                    btnRow.Controls.Add(btnLoadExpenses);
+
+                    btnAddExpense.Click += (s, e) => AddExpense();
+                    btnLoadExpenses.Click += (s, e) => LoadExpenses();
+
+                    inputPanel.Controls.Add(btnRow);
+                    inputPanel.Controls.Add(inputTable);
+
+                    // Add to pnlRight in proper order: label (top), dgv (fill), inputPanel (bottom)
+                    pnlRight.Controls.Add(dgvExpenses);
+                    pnlRight.Controls.Add(inputPanel);
+                    pnlRight.Controls.Add(lblExp);
+
+                    // Add panels to root layout
+                    root.Controls.Add(pnlLeft, 0, 0);
+                    root.Controls.Add(pnlRight, 1, 0);
+                }
 
         private void LoadCategories()
         {
