@@ -7,7 +7,7 @@ namespace ExpenseTracker.WinForms
 {
     public class MainForm : Form
     {
-        private readonly string _conn = @"Data Source=np:\\.\pipe\LOCALDB#0567EEC8\tsql\query;Initial Catalog=ExpenseDb;Integrated Security=True;";
+        private readonly string _conn = @"Server=(localdb)\\MSSQLLocalDB;Database=ExpenseDb;Trusted_Connection=True;";
         private ListBox lstCategories;
         private Button btnLoadCategories;
         private TextBox txtNewCategory;
