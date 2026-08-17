@@ -1,48 +1,51 @@
-Expense Tracker - Hướng dẫn nhanh (LocalDB - đơn giản)
+Expense Tracker - Hướng dẫn nhanh (WinForms chính, LocalDB)
 
-Mục tiêu
-- API nhỏ để quản lý chi tiêu (Expense) và category.
-- Dùng C#, ASP.NET Core Web API, EF Core và SQL Server (LocalDB cho phát triển cá nhân, Docker optional cho reproducibility).
+Tình trạng hiện tại
+- Phiên bản hiện tại tập trung vào WinForms desktop app (src/ExpenseTracker.WinForms). API (ASP.NET Core) đã được loại bỏ khỏi repository theo yêu cầu.
+- Database vật lý (LocalDB .mdf/.ldf) đã được commit vào thư mục /data trong repo để tiện di chuyển giữa máy. (Lưu ý: commit file DB có thể làm tăng kích thước repo.)
+- Migrations EF đã được loại bỏ vì repo hiện chứa file database thực tế.
 
-Yêu cầu tối thiểu (đơn giản)
-- .NET SDK (bạn đã có .NET 10)
+Yêu cầu tối thiểu
+- .NET SDK (đã thử nghiệm với .NET 10)
 - Git
-- SQL Server instance: LocalDB (Windows) hoặc SQL Server (bạn có thể đã có SSMS). Nếu không, README có hướng dẫn tùy chọn.
+- SQL Server LocalDB (Windows) — dùng LocalDB để chạy DB đã commit.
 
-Khởi động nhanh (khuyến nghị dùng LocalDB trên Windows)
+Khởi động nhanh (máy mới)
 1. Clone repo
-   git clone <your-repo-url>
-   cd <repo-folder>
+   git clone https://github.com/Dangne0201/expense-tracker.git
+   cd expense-tracker
 
-2. (Không cần Docker) — dùng LocalDB (mặc định đã cấu hình trong appsettings.Development.json)
-   - Nếu bạn có SQL Server/LocalDB: tiếp bước 3.
-   - Nếu không có LocalDB và không muốn cài SQL Server, bạn có thể dùng Docker (xem phần "Tùy chọn Docker" bên dưới).
+2. Kiểm tra LocalDB (Windows)
+   # khởi instance nếu chưa chạy
+   sqllocaldb start MSSQLLocalDB
+   sqllocaldb info MSSQLLocalDB
 
-3. Tạo database & apply migrations
-   dotnet tool restore
-   dotnet ef database update --project src\ExpenseTracker.Api\ExpenseTracker.Api.csproj --startup-project src\ExpenseTracker.Api\ExpenseTracker.Api.csproj
+3. Attach database đã commit (nếu chưa attach trên máy này)
+   # Thay đường dẫn nếu bạn clone vào folder khác
+   sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "CREATE DATABASE ExpenseDb ON (FILENAME='$(pwd)\\data\\ExpenseDb.mdf'), (FILENAME='$(pwd)\\data\\ExpenseDb_log.ldf') FOR ATTACH;"
 
-4. Chạy ứng dụng
-   dotnet run --project src\ExpenseTracker.Api\ExpenseTracker.Api.csproj
+   Nếu lệnh trên lỗi với $(pwd), thay bằng đường dẫn tuyệt đối tới file data trong máy bạn, ví dụ:
+   sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "CREATE DATABASE ExpenseDb ON (FILENAME='D:\\Projects\\expense-tracker\\data\\ExpenseDb.mdf'), (FILENAME='D:\\Projects\\expense-tracker\\data\\ExpenseDb_log.ldf') FOR ATTACH;"
 
-5. Mở Swagger UI để test
-   Mở trình duyệt: http://localhost:5119/swagger (hoặc URL output khi app chạy)
+4. Chạy WinForms app
+   dotnet run --project src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj
 
-6. Chạy tests
-   dotnet test
+5. Dùng ứng dụng
+   - Nút Load: tải Categories và Expenses từ DB
+   - Add/Edit/Delete: thao tác trực tiếp trên DB (ADO.NET)
 
-Tùy chọn Docker (nếu bạn muốn reproducible environment cho người khác)
-- Nếu muốn dùng Docker để khởi SQL Server container (khuyến nghị khi chia sẻ với người không dùng Windows):
-  copy .env.example .env
-  docker compose up -d
-  dotnet ef database update --project src\ExpenseTracker.Api\ExpenseTracker.Api.csproj
+Lưu ý quan trọng
+- Vì DB đã được commit, repo sẽ lớn hơn; bạn đã đồng ý nên tôi đã thêm file vào git.
+- Nếu muốn chia sẻ với người khác, họ chỉ cần clone và attach file .mdf/.ldf như hướng dẫn ở trên.
+- Không còn migrations EF trong repo; nếu bạn muốn chuyển lại sang workflow migration (tái tạo schema từ code), có thể tái tạo migrations sau.
 
-Lưu ý khi push lên GitHub
-- Không commit file .env (đã thêm vào .gitignore)
-- Commit docker-compose.yml và .env.example (không chứa secrets)
+File & thư mục quan trọng
+- /data/ExpenseDb.mdf, ExpenseDb_log.ldf  — database vật lý (đã commit)
+- /src/ExpenseTracker.WinForms/  — WinForms app (UI chính, dùng ADO.NET)
+- .gitignore  — hiện cho phép file DB trong /data (theo lựa chọn của bạn)
+- LEARNING_PLAN.md, README.md  — tài liệu học tập và hướng dẫn
 
-Ghi chú nhanh
-- Project mặc định được cấu hình để dùng LocalDB (appsettings.Development.json). Đây là lựa chọn đơn giản cho phát triển cá nhân trên Windows.
-- Docker là tùy chọn nếu bạn muốn người khác chạy giống môi trường của bạn (cross-platform).
-
-Nếu muốn, tôi sẽ thay đổi cấu hình hoặc hướng dẫn cài LocalDB/SQL Server step-by-step — bạn muốn tiếp theo là gì?
+Muốn làm gì tiếp theo?
+- Tôi có thể thêm scripts để attach DB tự động (PowerShell) và chạy WinForms bằng 1 lệnh.
+- Tôi có thể cập nhật README thêm lệnh chi tiết tuỳ theo đường dẫn repo của bạn.
+- Hoặc dừng ở đây nếu bạn đã rõ. Xin cho biết lựa chọn.
