@@ -1,6 +1,7 @@
 using System;
 using System.Data;
 using System.Windows.Forms;
+using System.Drawing;
 using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.WinForms
@@ -27,16 +28,31 @@ namespace ExpenseTracker.WinForms
         private void InitializeComponents()
         {
             Text = "Expense Tracker (WinForms)";
-            Width = 900;
-            Height = 600;
+                        // Make form scale properly on high-DPI screens
+                        this.AutoScaleMode = AutoScaleMode.Dpi;
+                        this.Font = SystemFonts.MessageBoxFont;
+                        Width = 900;
+                        Height = 600;
 
             // Left panel - categories
             var pnlLeft = new Panel { Left = 10, Top = 10, Width = 280, Height = 540 };
             var lblCat = new Label { Text = "Categories", Left = 10, Top = 10, Width = 200 };
             lstCategories = new ListBox { Left = 10, Top = 35, Width = 260, Height = 300 };
-            btnLoadCategories = new Button { Text = "Load", Left = 10, Top = 345, Width = 80 };
-            txtNewCategory = new TextBox { Left = 10, Top = 380, Width = 180 };
-            btnAddCategory = new Button { Text = "Add Category", Left = 200, Top = 378, Width = 70 };
+            btnLoadCategories = new Button { Text = "Load", Left = 10, Top = 345 };
+                        btnLoadCategories.AutoSize = true;
+                        btnLoadCategories.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                        btnLoadCategories.Padding = new Padding(6);
+                        btnLoadCategories.MinimumSize = new Size(90, 30);
+                        var szLoad = TextRenderer.MeasureText(btnLoadCategories.Text, this.Font);
+                        btnLoadCategories.Size = new Size(Math.Max(btnLoadCategories.MinimumSize.Width, szLoad.Width + 20), Math.Max(btnLoadCategories.MinimumSize.Height, szLoad.Height + 10));
+                        txtNewCategory = new TextBox { Left = 10, Top = 380, Width = 130 };
+                        btnAddCategory = new Button { Text = "Add Category", Left = 150, Top = 378 };
+                        btnAddCategory.AutoSize = true;
+                        btnAddCategory.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                        btnAddCategory.Padding = new Padding(6);
+                        btnAddCategory.MinimumSize = new Size(110, 30);
+                        var szAddCat = TextRenderer.MeasureText(btnAddCategory.Text, this.Font);
+                        btnAddCategory.Size = new Size(Math.Max(btnAddCategory.MinimumSize.Width, szAddCat.Width + 20), Math.Max(btnAddCategory.MinimumSize.Height, szAddCat.Height + 10));
 
             btnLoadCategories.Click += (s, e) => LoadCategories();
             btnAddCategory.Click += (s, e) => AddCategory();
@@ -59,8 +75,20 @@ namespace ExpenseTracker.WinForms
             dtpDate = new DateTimePicker { Left = 240, Top = 396, Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm" };
             var lblNote = new Label { Text = "Note", Left = 10, Top = 430 };
             txtNote = new TextBox { Left = 80, Top = 426, Width = 340 };
-            btnAddExpense = new Button { Text = "Add Expense", Left = 440, Top = 426, Width = 130 };
-            var btnLoadExpenses = new Button { Text = "Load Expenses", Left = 10, Top = 470, Width = 120 };
+            btnAddExpense = new Button { Text = "Add Expense", Left = 440, Top = 426 };
+                        btnAddExpense.AutoSize = true;
+                        btnAddExpense.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                        btnAddExpense.Padding = new Padding(6);
+                        btnAddExpense.MinimumSize = new Size(110, 30);
+                        var szAddExp = TextRenderer.MeasureText(btnAddExpense.Text, this.Font);
+                        btnAddExpense.Size = new Size(Math.Max(btnAddExpense.MinimumSize.Width, szAddExp.Width + 20), Math.Max(btnAddExpense.MinimumSize.Height, szAddExp.Height + 10));
+                        var btnLoadExpenses = new Button { Text = "Load Expenses", Left = 10, Top = 470 };
+                        btnLoadExpenses.AutoSize = true;
+                        btnLoadExpenses.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                        btnLoadExpenses.Padding = new Padding(6);
+                        btnLoadExpenses.MinimumSize = new Size(110, 30);
+                        var szLoadExp = TextRenderer.MeasureText(btnLoadExpenses.Text, this.Font);
+                        btnLoadExpenses.Size = new Size(Math.Max(btnLoadExpenses.MinimumSize.Width, szLoadExp.Width + 20), Math.Max(btnLoadExpenses.MinimumSize.Height, szLoadExp.Height + 10));
 
             btnAddExpense.Click += (s, e) => AddExpense();
             btnLoadExpenses.Click += (s, e) => LoadExpenses();
