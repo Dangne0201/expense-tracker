@@ -19,6 +19,7 @@ namespace ExpenseTracker.WinForms
         private DateTimePicker dtpDate;
         private TextBox txtNote;
         private Button btnAddExpense;
+        private Button btnDeleteExpense;
 
         public MainForm()
         {
@@ -43,47 +44,47 @@ namespace ExpenseTracker.WinForms
                     // Left panel - categories (uses Dock/Filling layout)
                     var pnlLeft = new Panel { Dock = DockStyle.Fill };
                     var lblCat = new Label { Text = "Categories", Dock = DockStyle.Top, Height = 22 };
-                    lstCategories = new ListBox { Dock = DockStyle.Fill }; // fills available space between label and bottom panel
-
-                    var leftBottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 80, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
-                    btnLoadCategories = new Button { Text = "Load", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
-                    txtNewCategory = new TextBox { Width = 150 };
-                    btnAddCategory = new Button { Text = "Add Category", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6) };
-                    leftBottom.Controls.Add(btnLoadCategories);
-                    leftBottom.Controls.Add(txtNewCategory);
-                    leftBottom.Controls.Add(btnAddCategory);
-
-                    btnLoadCategories.Click += (s, e) => LoadCategories();
-                    btnAddCategory.Click += (s, e) => AddCategory();
-
-                    pnlLeft.Controls.Add(lstCategories);
-                    pnlLeft.Controls.Add(lblCat);
-                    pnlLeft.Controls.Add(leftBottom);
+                    lstCategories = new ListBox { Dock = DockStyle.Fill };
 
                     // Right panel - expenses (vertical layout)
                     var pnlRight = new Panel { Dock = DockStyle.Fill };
                     var lblExp = new Label { Text = "Expenses", Dock = DockStyle.Top, Height = 22 };
 
-                    // DataGridView fills the available area between label and input panel
+                    // DataGridView fills the available area between label and footer
                     dgvExpenses = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
 
-                    // Input area: use a fixed-height Panel so left and right bottom areas reserve the same space
-                    var inputPanel = new Panel { Dock = DockStyle.Bottom, Height = 80 };
+                    // Footer: shared row so left/right footers align heights
+                    var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+                    footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+                    footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-                    // Inputs row (top of inputPanel)
+                    // Footer left: category controls
+                    var footerLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
+                    btnLoadCategories = new Button { Text = "Load", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    txtNewCategory = new TextBox { Width = 140, Margin = new Padding(6) };
+                    btnAddCategory = new Button { Text = "Add", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    footerLeft.Controls.Add(btnLoadCategories);
+                    footerLeft.Controls.Add(txtNewCategory);
+                    footerLeft.Controls.Add(btnAddCategory);
+                    btnLoadCategories.Click += (s, e) => LoadCategories();
+                    btnAddCategory.Click += (s, e) => AddCategory();
+
+                    // Footer right: inputs and expense buttons
+                    var footerRight = new Panel { Dock = DockStyle.Fill };
+
                     var inputTable = new TableLayoutPanel { Dock = DockStyle.Top, Height = 40, AutoSize = false, ColumnCount = 6, RowCount = 1, Padding = new Padding(6) };
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Amount label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); // Amount textbox
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Date label
-                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Date picker
+                    inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180)); // Date picker (smaller)
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Note label
                     inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // Note textbox (fill remaining)
 
                     var lblAmount = new Label { Text = "Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(3, 8, 6, 3) };
-                    txtAmount = new TextBox { Width = 140, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
+                    txtAmount = new TextBox { Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
 
                     var lblDate = new Label { Text = "Date", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
-                    dtpDate = new DateTimePicker { Width = 220, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
+                    dtpDate = new DateTimePicker { Width = 180, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
 
                     var lblNote = new Label { Text = "Note", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
                     txtNote = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
@@ -95,28 +96,37 @@ namespace ExpenseTracker.WinForms
                     inputTable.Controls.Add(lblNote, 4, 0);
                     inputTable.Controls.Add(txtNote, 5, 0);
 
-                    // Button row below inputs — right-aligned by using RightToLeft flow
-                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(6), WrapContents = false }; 
+                    var btnRow = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(6), WrapContents = false };
                     btnAddExpense = new Button { Text = "Add Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     var btnLoadExpenses = new Button { Text = "Load Expenses", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
+                    btnDeleteExpense = new Button { Text = "Delete Expense", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(6), Margin = new Padding(6) };
                     btnRow.Controls.Add(btnAddExpense);
                     btnRow.Controls.Add(btnLoadExpenses);
+                    btnRow.Controls.Add(btnDeleteExpense);
 
                     btnAddExpense.Click += (s, e) => AddExpense();
                     btnLoadExpenses.Click += (s, e) => LoadExpenses();
+                    btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
 
-                    // Add controls to the inputPanel in correct order (inputs on top, buttons below)
-                    inputPanel.Controls.Add(inputTable);
-                    inputPanel.Controls.Add(btnRow);
+                    footerRight.Controls.Add(inputTable);
+                    footerRight.Controls.Add(btnRow);
 
-                    // Add to pnlRight in proper order: label (top), dgv (fill), inputPanel (bottom)
+                    // Assemble panels into root with footer row
+                    // root has 2 rows: 0 = main area, 1 = footer fixed height
+                    root.RowCount = 2;
+                    root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                    root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+
+                    pnlLeft.Controls.Add(lstCategories);
+                    pnlLeft.Controls.Add(lblCat);
+
                     pnlRight.Controls.Add(dgvExpenses);
-                    pnlRight.Controls.Add(inputPanel);
                     pnlRight.Controls.Add(lblExp);
 
-                    // Add panels to root layout
                     root.Controls.Add(pnlLeft, 0, 0);
                     root.Controls.Add(pnlRight, 1, 0);
+                    root.Controls.Add(footerLeft, 0, 1);
+                    root.Controls.Add(footerRight, 1, 1);
                 }
 
         private void LoadCategories()
@@ -205,6 +215,31 @@ ORDER BY e.Date DESC", conn);
             catch (Exception ex)
             {
                 MessageBox.Show("AddExpense error: " + ex.Message);
+            }
+        }
+
+        private void DeleteSelectedExpense()
+        {
+            if (dgvExpenses.CurrentRow == null)
+            {
+                MessageBox.Show("Select an expense to delete.");
+                return;
+            }
+            try
+            {
+                var idObj = dgvExpenses.CurrentRow.Cells["Id"].Value;
+                if (idObj == null) { MessageBox.Show("Selected row has no Id."); return; }
+                var id = Convert.ToInt32(idObj);
+                using var conn = new SqlConnection(_conn);
+                using var cmd = new SqlCommand("DELETE FROM Expenses WHERE Id = @id", conn);
+                cmd.Parameters.AddWithValue("@id", id);
+                conn.Open();
+                cmd.ExecuteNonQuery();
+                LoadExpenses();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("DeleteExpense error: " + ex.Message);
             }
         }
     }
