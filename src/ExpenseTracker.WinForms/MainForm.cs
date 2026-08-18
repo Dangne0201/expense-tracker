@@ -157,19 +157,27 @@ namespace ExpenseTracker.WinForms
         private void EnsureDatabaseAvailable()
         {
             // If user set SQL_CONN environment variable (for dockerized DB or custom connection), prefer that
+            // Check process-level SQL_CONN first, then user-level (scripts may write a User env var)
             var envConn = Environment.GetEnvironmentVariable("SQL_CONN");
+            if (string.IsNullOrWhiteSpace(envConn))
+            {
+                try { envConn = Environment.GetEnvironmentVariable("SQL_CONN", EnvironmentVariableTarget.User); } catch { /* ignore if not supported */ }
+            }
             if (!string.IsNullOrWhiteSpace(envConn))
             {
-                if (TryOpenConnection(envConn))
+                // Retry a few times because containerized SQL Server may still be finishing startup
+                const int maxRetries = 6;
+                for (int attempt = 0; attempt < maxRetries; attempt++)
                 {
-                    _conn = envConn;
-                    return;
+                    if (TryOpenConnection(envConn))
+                    {
+                        _conn = envConn;
+                        return;
+                    }
+                    System.Threading.Thread.Sleep(2000);
                 }
-                else
-                {
-                    // don't reveal the connection string in UI; show a short message
-                    MessageBox.Show("SQL_CONN is set but the app failed to connect using it. Please check the connection string and ensure the DB is reachable.");
-                }
+                // don't reveal the connection string in UI; show a short message
+                MessageBox.Show("SQL_CONN is set but the app failed to connect using it. Please check the connection string and ensure the DB is reachable.");
             }
 
             // Prefer using the repository data\ExpenseDb.mdf if present (make behavior deterministic)
@@ -232,9 +240,35 @@ namespace ExpenseTracker.WinForms
                         c.Close();
                         return true;
                     }
+                    catch (Exception ex)
+                    {
+                        // Log the exception message and the sanitized connection string to help diagnostics
+                        try
+                        {
+                            var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                            if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                            var logFile = Path.Combine(logDir, "startup.log");
+                            var sanitized = SanitizeConnectionString(connStr);
+                            var line = $"[{DateTime.UtcNow:O}] TryOpenConnection failed. Conn=" + sanitized + "; Error=" + ex.Message + Environment.NewLine;
+                            File.AppendAllText(logFile, line);
+                        }
+                        catch { /* best-effort logging; ignore failures */ }
+                        return false;
+                    }
+                }
+
+                private static string SanitizeConnectionString(string conn)
+                {
+                    if (string.IsNullOrEmpty(conn)) return conn;
+                    try
+                    {
+                        // Remove password value for logging
+                        var regex = new System.Text.RegularExpressions.Regex("(?i)Password=([^;]+)");
+                        return regex.Replace(conn, "Password=*****");
+                    }
                     catch
                     {
-                        return false;
+                        return "<could-not-sanitize>";
                     }
                 }
 

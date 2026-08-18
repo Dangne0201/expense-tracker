@@ -4,13 +4,14 @@ services:
     image: mcr.microsoft.com/mssql/server:2019-latest
     container_name: expense-mssql
     environment:
-      SA_PASSWORD: "Your_password123"
+      SA_PASSWORD: "${SA_PASSWORD:-Your_password123}"
       ACCEPT_EULA: "Y"
     ports:
       - "1433:1433"
     volumes:
       - mssqldata:/var/opt/mssql/data
       - ./data/init.sql:/init/init.sql:ro
+      # Using Docker-managed named volume 'mssqldata' for SQL Server data to avoid host-bind permission issues on Windows; this keeps data persistent across container restarts without binding to host paths.
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "SA", "-P", "Your_password123", "-Q", "SELECT 1"]
@@ -19,5 +20,5 @@ services:
       retries: 10
 
 volumes:
-  mssqldata:
-    driver: local
+  mssqldata: {}
+# 'mssqldata' is a Docker-managed named volume (no host path). This avoids Windows host ACL problems; Docker will manage the storage location.

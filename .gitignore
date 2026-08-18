@@ -31,7 +31,11 @@ Thumbs.db
 Desktop.ini
 
 # Local DB and backups
-# (Removed mdf/ldf ignores to allow committing DB files per user request)
+# Ignore SQL Server database files and temp files in data/ (DB binaries are large and machine-specific)
+data/*.mdf
+data/*.ndf
+data/*.ldf
+# Keep init.sql and other scripts
 
 # other
 .properties

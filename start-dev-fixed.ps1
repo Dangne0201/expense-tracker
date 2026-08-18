@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$saPassword = "Your_password123"
 )
 
@@ -23,6 +23,11 @@ try { & $dockerCmd 'compose' 'version' > $null 2>&1; $composeCmd = @($dockerCmd,
 }
 
 Write-Output "Running: docker compose up -d"
+# Export SA_PASSWORD into the environment so docker-compose can pick it up if compose file uses ${SA_PASSWORD}
+if ($saPassword) {
+    $env:SA_PASSWORD = $saPassword
+    Write-Output "Exported SA_PASSWORD environment variable for docker compose (hidden)."
+}
 if ($composeCmd -is [array] -and $composeCmd.Count -eq 1) {
     & $composeCmd[0] 'up' '-d' '--force-recreate'
 } else {
@@ -65,8 +70,19 @@ while ($i -lt $max) {
 if ($i -ge $max) { Write-Error "SQL Server did not become ready in time (waited $($max*2) seconds)."; exit 1 }
 
 Write-Output "Initializing database (checking current state)..."
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$initPathHost = Join-Path $repoRoot 'data\init.sql'
+# Determine repo root robustly: if this script is in scripts/ the repo root is parent; if this script is at repo root use PSScriptRoot.
+$candidateA = Join-Path (Split-Path -Parent $PSScriptRoot) 'data\init.sql'   # when script is in scripts\
+$candidateB = Join-Path $PSScriptRoot 'data\init.sql'                         # when script is at repo root
+if (Test-Path $candidateB) { 
+    $repoRoot = $PSScriptRoot
+    $initPathHost = $candidateB
+} elseif (Test-Path $candidateA) {
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+    $initPathHost = $candidateA
+} else {
+    Write-Error "Cannot find data\init.sql in expected locations: $candidateB or $candidateA"
+    exit 1
+}
 try { $initPathHost = (Resolve-Path $initPathHost -ErrorAction Stop).Path } catch { Write-Error "Cannot resolve init.sql path: $initPathHost"; exit 1 }
 
 # Helper to run a SQL command and return trimmed stdout
