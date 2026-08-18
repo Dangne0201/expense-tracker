@@ -1,4 +1,4 @@
-version: '3.8'
+﻿version: '3.8'
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -11,13 +11,13 @@ services:
     volumes:
       - mssqldata:/var/opt/mssql/data
       - ./data/init.sql:/init/init.sql:ro
-
-volumes:
-  mssqldata:
-    driver: local
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "SA", "-P", "Your_password123", "-Q", "SELECT 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+volumes:
+  mssqldata:
+    driver: local
