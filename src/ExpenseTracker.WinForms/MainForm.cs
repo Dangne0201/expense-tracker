@@ -156,6 +156,22 @@ namespace ExpenseTracker.WinForms
 
         private void EnsureDatabaseAvailable()
         {
+            // If user set SQL_CONN environment variable (for dockerized DB or custom connection), prefer that
+            var envConn = Environment.GetEnvironmentVariable("SQL_CONN");
+            if (!string.IsNullOrWhiteSpace(envConn))
+            {
+                if (TryOpenConnection(envConn))
+                {
+                    _conn = envConn;
+                    return;
+                }
+                else
+                {
+                    // don't reveal the connection string in UI; show a short message
+                    MessageBox.Show("SQL_CONN is set but the app failed to connect using it. Please check the connection string and ensure the DB is reachable.");
+                }
+            }
+
             // Prefer using the repository data\ExpenseDb.mdf if present (make behavior deterministic)
             var mdf = FindDataMdf();
             if (!string.IsNullOrEmpty(mdf))
