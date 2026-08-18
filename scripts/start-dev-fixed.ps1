@@ -65,7 +65,8 @@ while ($i -lt $max) {
 if ($i -ge $max) { Write-Error "SQL Server did not become ready in time (waited $($max*2) seconds)."; exit 1 }
 
 Write-Output "Initializing database from data/init.sql..."
-$initPathHost = Join-Path (Split-Path -Parent $PSScriptRoot) '..\data\init.sql'
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$initPathHost = Join-Path $repoRoot 'data\init.sql'
 try { $initPathHost = (Resolve-Path $initPathHost -ErrorAction Stop).Path } catch { Write-Error "Cannot resolve init.sql path: $initPathHost"; exit 1 }
 
 if ($hostSqlcmd) {
