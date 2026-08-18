@@ -10,19 +10,14 @@ function Check-CommandExists([string]$name) {
 
 Write-Output "== ExpenseTracker: Full setup script =="
 
-if (-not (Check-CommandExists 'docker')) {
+# Detect Docker CLI (allow explicit install path if not in PATH)
+$dockerCmdObj = Get-Command docker -ErrorAction SilentlyContinue
+if ($dockerCmdObj) { $dockerAvailable = $true } else { $candidate = 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'; $dockerAvailable = Test-Path $candidate }
+if (-not $dockerAvailable) {
     Write-Error "Docker CLI not found. Please install Docker Desktop and ensure Docker is running. https://www.docker.com/products/docker-desktop"
     exit 1
 }
-
-# docker-compose may be the legacy command or integrated as 'docker compose'
-$hasDockerCompose = Check-CommandExists 'docker-compose'
-$hasDockerComposeAlt = Check-CommandExists 'docker'
-
-if (-not $hasDockerCompose -and -not $hasDockerComposeAlt) {
-    Write-Error "docker-compose not available. Install Docker Compose or use Docker Desktop which includes 'docker compose'."
-    exit 1
-}
+# Note: docker-compose availability is handled by start-dev-fixed.ps1 which tries both 'docker compose' and docker-compose.exe.
 
 if (-not (Check-CommandExists 'dotnet')) {
     Write-Warning "dotnet SDK not found. You can still run the published exe if available. To build from source, install .NET SDK: https://dotnet.microsoft.com/en-us/download"
