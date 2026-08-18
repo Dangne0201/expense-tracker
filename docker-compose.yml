@@ -9,8 +9,12 @@ services:
     ports:
       - "1433:1433"
     volumes:
-      - ./data:/var/opt/mssql/data
+      - mssqldata:/var/opt/mssql/data
       - ./data/init.sql:/init/init.sql:ro
+
+volumes:
+  mssqldata:
+    driver: local
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "SA", "-P", "Your_password123", "-Q", "SELECT 1"]
