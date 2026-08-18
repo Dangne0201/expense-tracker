@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$saPassword = "Your_password123",
     [switch]$RunApp = $true
 )
@@ -8,7 +8,7 @@ function Check-CommandExists([string]$name) {
     return $null -ne $c
 }
 
-Write-Output "== ExpenseTracker: Full setup script =="
+Write-Output "== ExpenseTracker: Full setup script (fixed) =="
 
 # Detect Docker CLI (allow explicit install path if not in PATH)
 $dockerCmdObj = Get-Command docker -ErrorAction SilentlyContinue
@@ -44,7 +44,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Set environment variable for this process so children inherit it
 $env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;"
-Write-Output "Set SQL_CONN environment variable for this session."
+Write-Output "Set SQL_CONN environment variable for this session. (SQL_CONN not printed for security)"
 
 # Build the WinForms project if dotnet present
 $proj = Join-Path $PSScriptRoot '..\src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj'
@@ -75,3 +75,4 @@ if (Check-CommandExists 'dotnet') {
 }
 
 Write-Output "Setup script completed successfully."
+
