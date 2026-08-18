@@ -43,36 +43,14 @@
   - tên danh mục không được rỗng
   - số tiền phải hợp lệ
   - phải chọn category trước khi thêm chi tiêu
-- Cải thiện layout UI để không bị vỡ khi resize hoặc trên màn hình khác nhau.
-- Kiểm tra trên nhiều kích thước màn hình và DPI khác nhau.
-- Xử lý các trường hợp không có dữ liệu hoặc DB chưa khởi tạo.
+- Xử lý các trường hợp không hợp lệ.
 
 ## Giai đoạn 5 - Làm sạch repo và chuẩn hóa review
-- Xóa build outputs, obj/bin, log không cần thiết.
-- Xóa file DB binary không nên up vào Git.
-- Giữ repo chỉ chứa code + config + schema + docs cần thiết.
-- Giữ README và setup guide ngắn gọn, dễ hiểu cho người mới.
+
+- Giữ README và setup guide ngắn gọn, dễ hiểu.
 - Tạo quy tắc rõ ràng về file nào nên lên Git và file nào nên không lên Git.
 
-## Giai đoạn 6 - Nâng cấp kiến trúc cho phát triển dài hạn
-- Tách UI khỏi logic dữ liệu.
-- Thiết kế lớp Repository/Service cho Categories và Expenses.
-- Xây dựng model rõ ràng: Category, Expense.
-- Chuẩn hóa xử lý exception và logging.
-- Chuẩn bị cho việc thêm tính năng báo cáo, thống kê, lọc theo thời gian.
 
-## Giai đoạn 7 - Mở rộng tính năng kinh doanh
-- Thêm thống kê chi tiêu theo danh mục.
-- Thêm báo cáo theo tháng / quý.
-- Thêm lọc dữ liệu theo thời gian.
-- Thêm nhập liệu nhanh và sửa dữ liệu đã có.
-- Có thể thêm tính năng export CSV hoặc báo cáo PDF nếu cần thiết.
-
-## Giai đoạn 8 - Tối ưu hóa và đóng gói cho người dùng
-- Chuẩn bị cách build release ổn định.
-- Xác định workflow triển khai cho máy dev và máy production.
-- Tối ưu doc để người mới chỉ cần clone repo và chạy 1 lệnh.
-- Tạo checklist QA cơ bản trước khi release.
 
 ## Kết luận
 - Dự án này nên đi theo hướng: "mã nguồn sạch + môi trường chạy được trên máy mới + DB có thể tạo lại từ script".

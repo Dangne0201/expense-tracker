@@ -206,6 +206,22 @@ namespace ExpenseTracker.WinForms
                 MessageBox.Show("SQL_CONN is set but the app failed to connect using it. Please check the connection string and ensure the DB is reachable.");
             }
 
+            var defaultDockerConn = GetDefaultDockerConnectionString();
+            if (!string.IsNullOrWhiteSpace(defaultDockerConn))
+            {
+                const int maxRetries = 6;
+                for (int attempt = 0; attempt < maxRetries; attempt++)
+                {
+                    if (TryOpenConnection(defaultDockerConn))
+                    {
+                        _conn = defaultDockerConn;
+                        return;
+                    }
+
+                    System.Threading.Thread.Sleep(2000);
+                }
+            }
+
             var mdfPath = FindDataMdf();
             if (!string.IsNullOrEmpty(mdfPath))
             {
@@ -270,6 +286,20 @@ namespace ExpenseTracker.WinForms
             {
                 return null;
             }
+        }
+
+        private string GetDefaultDockerConnectionString()
+        {
+            // The project ships with Docker-based SQL Server as the default dev setup.
+            // This allows a direct double-click/Explorer launch to work when SQL_CONN is not set,
+            // as long as the Docker container is running (default password from the project setup scripts).
+            var password = Environment.GetEnvironmentVariable("SA_PASSWORD");
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                password = "Your_password123";
+            }
+
+            return $"Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password={password};TrustServerCertificate=True;";
         }
 
         /// <summary>

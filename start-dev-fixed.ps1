@@ -34,6 +34,35 @@ if ($composeCmd -is [array] -and $composeCmd.Count -eq 1) {
     & $composeCmd[0] $composeCmd[1] 'up' '-d' '--force-recreate'
 }
 
+# Post-create: detect the named volume used for SQL Server data and attempt to fix ownership
+# if it appears owned by root or another UID (this commonly causes BootstrapSystemDataDirectories failures).
+try {
+    $container = "expense-mssql"
+    # Attempt to get the volume name mounted at /var/opt/mssql/data
+    $volName = & $dockerCmd 'inspect' $container '--format' '{{range .Mounts}}{{if eq .Destination "/var/opt/mssql/data"}}{{.Name}}{{end}}{{end}}' 2>$null
+    $volName = ($volName -join "").Trim()
+    if (-not [string]::IsNullOrWhiteSpace($volName)) {
+        Write-Output "Detected data volume: $volName. Checking ownership of master.mdf..."
+        # Use an ephemeral alpine container to inspect owner of master.mdf if present
+        $owner = & $dockerCmd 'run' '--rm' '-v' "${volName}:/var/opt/mssql/data" 'alpine' 'sh' '-c' "if [ -f /var/opt/mssql/data/master.mdf ]; then ls -ln /var/opt/mssql/data/master.mdf | awk '{print \$3}'; else echo 'MISSING'; fi" 2>$null
+        $owner = ($owner -join "").Trim()
+        if ($owner -and $owner -ne 'MISSING' -and $owner -ne '10001') {
+            Write-Output "master.mdf owner is '$owner' (expected 10001). Attempting to chown volume to 10001:10001..."
+            & $dockerCmd 'run' '--rm' '-v' "${volName}:/var/opt/mssql/data" 'alpine' 'sh' '-c' "chown -R 10001:10001 /var/opt/mssql/data || true"
+            Write-Output "Chown executed. You may still want to inspect docker logs if problems persist."
+        } elseif ($owner -eq 'MISSING') {
+            Write-Output "master.mdf not present yet; SQL Server will create system files during startup if permissions allow."
+        } else {
+            Write-Output "Data volume ownership looks OK (owner: $owner)."
+        }
+    } else {
+        Write-Output "Could not detect a named volume mounted at /var/opt/mssql/data for container $container; skipping ownership check."
+    }
+} catch {
+    Write-Output "Volume ownership check failed (non-fatal): $_"
+}
+
+
 $container = "expense-mssql"
 Write-Output "Waiting for SQL Server container '$container' to be ready..."
 $max = 60; $i = 0

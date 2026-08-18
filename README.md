@@ -1,47 +1,61 @@
 Expense Tracker
 
-Mô tả ngắn
+## Overview
 - Dự án WinForms quản lý chi tiêu cá nhân.
-- App dùng SQL Server chạy trong Docker để dễ setup trên máy mới.
+- App kết nối SQL Server chạy trong Docker để dễ setup trên máy mới.
 - Database không được lưu trong Git; schema được tạo lại từ file data/init.sql.
 
-Yêu cầu
+## Requirements
 - Windows 10/11
 - Docker Desktop đang chạy
 - Git
-- .NET SDK (nếu muốn build từ source, không bắt buộc nếu dùng runtime có sẵn)
+- .NET SDK (nếu muốn build từ source)
 
-Khởi động trên máy mới
+## Quick start
 1. Clone repo
    git clone https://github.com/Dangne0201/expense-tracker.git
    cd expense-tracker
 
-2. Chạy setup 1 lệnh
+2. Run the setup script
    powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
 
-   Hoặc chỉ khởi DB + init SQL mà không chạy app:
+   Nếu chỉ muốn dựng Docker + DB mà không mở app:
    powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123" -RunApp:$false
 
-3. Script sẽ làm gì
-   - khởi SQL Server bằng Docker
-   - chờ DB sẵn sàng
+3. What the script does
+   - tạo SQL Server bằng Docker
+   - chờ SQL Server sẵn sàng
    - chạy data/init.sql nếu database ExpenseDb chưa tồn tại
-   - nếu bật RunApp thì build và mở WinForms app
+   - nếu RunApp = true thì build và mở WinForms app
 
-Chạy lại sau khi máy đã cài xong
+## Run again later
 - Bật Docker Desktop
 - Trong repo, chạy:
   docker compose up -d
-- Sau đó mở app theo cách bạn cần (VS, dotnet run, hoặc chạy lại setup-all nếu muốn)
+- Mở app bằng VS, dotnet run, hoặc chạy lại setup-all.ps1 nếu cần
 
-Cấu trúc repo quan trọng
+## Troubleshooting
+- Docker không chạy: mở Docker Desktop
+- Port 1433 đang bị chiếm: kiểm tra SQL Server khác trên máy hoặc đổi port trong docker-compose.yml
+- Database không khởi: chạy lại setup-all.ps1 với password tương ứng
+- Nếu SQL Server liên tục restart và log báo "Access is denied" hoặc "master database file is owned by root": đây là lỗi permission trên Docker volume /var/opt/mssql/data. Khắc phục nhanh:
+  docker run --rm -v expense_tracker_mssqldata:/var/opt/mssql/data alpine sh -c "chown -R 10001:10001 /var/opt/mssql/data || true"
+  docker compose up -d
+- Nếu muốn reset DB sạch:
+  docker compose down -v
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
+
+## Repo structure
 - docker-compose.yml: cấu hình SQL Server trong Docker
 - data/init.sql: schema + seed dữ liệu khởi tạo DB
 - setup-all.ps1: entrypoint chính cho máy mới
 - start-dev-fixed.ps1: script khởi DB và init schema
 - src/ExpenseTracker.WinForms: mã nguồn app
 
-Lưu ý
-- Không commit file .mdf/.ldf/.ndf, không commit .env thật, không commit build output
+## Notes
+- Không commit file database binary (.mdf/.ldf/.ndf)
+- Không commit .env thật
+- Không commit build artifacts
 - DB được tạo lại từ init.sql, nên repo nhỏ gọn và dễ share trên Git
+
 
