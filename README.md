@@ -1,46 +1,47 @@
-Expense Tracker - Hướng dẫn nhanh (WinForms chính, LocalDB)
+Expense Tracker
 
-Tình trạng hiện tại
-- Phiên bản hiện tại tập trung vào WinForms desktop app (src/ExpenseTracker.WinForms).
-- Database vật lý (LocalDB .mdf/.ldf) đã được commit vào thư mục /data trong repo để tiện di chuyển giữa máy. (Lưu ý: commit file DB có thể làm tăng kích thước repo.)
+Mô tả ngắn
+- Dự án WinForms quản lý chi tiêu cá nhân.
+- App dùng SQL Server chạy trong Docker để dễ setup trên máy mới.
+- Database không được lưu trong Git; schema được tạo lại từ file data/init.sql.
 
-Yêu cầu tối thiểu
-- .NET SDK (đã thử nghiệm với .NET 10)
+Yêu cầu
+- Windows 10/11
+- Docker Desktop đang chạy
 - Git
-- SQL Server LocalDB (Windows) — dùng LocalDB để chạy DB đã commit.
+- .NET SDK (nếu muốn build từ source, không bắt buộc nếu dùng runtime có sẵn)
 
-Khởi động nhanh (máy mới)
+Khởi động trên máy mới
 1. Clone repo
    git clone https://github.com/Dangne0201/expense-tracker.git
    cd expense-tracker
 
-2. Kiểm tra LocalDB (Windows)
-   # khởi instance nếu chưa chạy
-   sqllocaldb start MSSQLLocalDB
-   sqllocaldb info MSSQLLocalDB
+2. Chạy setup 1 lệnh
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
 
-3. Attach database đã commit (nếu chưa attach trên máy này)
-   # Thay đường dẫn nếu bạn clone vào folder khác
-   sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "CREATE DATABASE ExpenseDb ON (FILENAME='$(pwd)\\data\\ExpenseDb.mdf'), (FILENAME='$(pwd)\\data\\ExpenseDb_log.ldf') FOR ATTACH;"
+   Hoặc chỉ khởi DB + init SQL mà không chạy app:
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123" -RunApp:$false
 
-   Nếu lệnh trên lỗi với $(pwd), thay bằng đường dẫn tuyệt đối tới file data trong máy bạn, ví dụ:
-   sqlcmd -S "(localdb)\MSSQLLocalDB" -E -Q "CREATE DATABASE ExpenseDb ON (FILENAME='D:\\Projects\\expense-tracker\\data\\ExpenseDb.mdf'), (FILENAME='D:\\Projects\\expense-tracker\\data\\ExpenseDb_log.ldf') FOR ATTACH;"
+3. Script sẽ làm gì
+   - khởi SQL Server bằng Docker
+   - chờ DB sẵn sàng
+   - chạy data/init.sql nếu database ExpenseDb chưa tồn tại
+   - nếu bật RunApp thì build và mở WinForms app
 
-4. Chạy WinForms app
-   dotnet run --project src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj
+Chạy lại sau khi máy đã cài xong
+- Bật Docker Desktop
+- Trong repo, chạy:
+  docker compose up -d
+- Sau đó mở app theo cách bạn cần (VS, dotnet run, hoặc chạy lại setup-all nếu muốn)
 
-5. Dùng ứng dụng
-   - Nút Load: tải Categories và Expenses từ DB
-   - Add/Edit/Delete: thao tác trực tiếp trên DB (ADO.NET)
+Cấu trúc repo quan trọng
+- docker-compose.yml: cấu hình SQL Server trong Docker
+- data/init.sql: schema + seed dữ liệu khởi tạo DB
+- setup-all.ps1: entrypoint chính cho máy mới
+- start-dev-fixed.ps1: script khởi DB và init schema
+- src/ExpenseTracker.WinForms: mã nguồn app
 
-Lưu ý quan trọng
-- Vì DB đã được commit, repo sẽ lớn hơn; bạn đã đồng ý nên tôi đã thêm file vào git.
-- Nếu muốn chia sẻ với người khác, họ chỉ cần clone và attach file .mdf/.ldf như hướng dẫn ở trên.
-- Không còn migrations EF trong repo; nếu bạn muốn chuyển lại sang workflow migration (tái tạo schema từ code), có thể tái tạo migrations sau.
-
-File & thư mục quan trọng
-- /data/ExpenseDb.mdf, ExpenseDb_log.ldf  — database vật lý (đã commit)
-- /src/ExpenseTracker.WinForms/  — WinForms app (UI chính, dùng ADO.NET)
-- .gitignore  — hiện cho phép file DB trong /data (theo lựa chọn của bạn)
-- LEARNING_PLAN.md, README.md  — tài liệu học tập và hướng dẫn
+Lưu ý
+- Không commit file .mdf/.ldf/.ndf, không commit .env thật, không commit build output
+- DB được tạo lại từ init.sql, nên repo nhỏ gọn và dễ share trên Git
 
