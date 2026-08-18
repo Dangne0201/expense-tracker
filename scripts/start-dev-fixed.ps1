@@ -22,8 +22,12 @@ try { & $dockerCmd 'compose' 'version' > $null 2>&1; $composeCmd = @($dockerCmd,
     if (Test-Path $composeExe) { $composeCmd = @($composeExe) } else { $composeCmd = @($dockerCmd, 'compose') }
 }
 
-Write-Output "Running: $composeCmd up -d"
-& $composeCmd up -d
+Write-Output "Running: docker compose up -d"
+if ($composeCmd -is [array] -and $composeCmd.Count -eq 1) {
+    & $composeCmd[0] 'up' '-d'
+} else {
+    & $composeCmd[0] $composeCmd[1] 'up' '-d'
+}
 
 $container = "expense-mssql"
 Write-Output "Waiting for SQL Server container '$container' to be ready..."
