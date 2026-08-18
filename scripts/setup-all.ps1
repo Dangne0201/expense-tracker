@@ -28,16 +28,16 @@ if (-not (Check-CommandExists 'dotnet')) {
     Write-Warning "dotnet SDK not found. You can still run the published exe if available. To build from source, install .NET SDK: https://dotnet.microsoft.com/en-us/download"
 }
 
-# Run the db init (reuses start-dev.ps1)
+# Run the db init (reuses start-dev-fixed.ps1)
 Write-Output "Starting DB container and initializing schema..."
-$scriptPath = Join-Path $PSScriptRoot 'start-dev.ps1'
+$scriptPath = Join-Path $PSScriptRoot 'start-dev-fixed.ps1'
 if (-Not (Test-Path $scriptPath)) {
     # In case script is run from repo root, try relative location
-    $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\start-dev.ps1'
+    $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\start-dev-fixed.ps1'
 }
 
 if (-Not (Test-Path $scriptPath)) {
-    Write-Error "Cannot find start-dev.ps1 (expected at scripts/start-dev.ps1)."
+    Write-Error "Cannot find start-dev-fixed.ps1 (expected at scripts/start-dev-fixed.ps1)."
     exit 1
 }
 
