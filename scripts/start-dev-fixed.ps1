@@ -24,9 +24,9 @@ try { & $dockerCmd 'compose' 'version' > $null 2>&1; $composeCmd = @($dockerCmd,
 
 Write-Output "Running: docker compose up -d"
 if ($composeCmd -is [array] -and $composeCmd.Count -eq 1) {
-    & $composeCmd[0] 'up' '-d'
+    & $composeCmd[0] 'up' '-d' '--force-recreate'
 } else {
-    & $composeCmd[0] $composeCmd[1] 'up' '-d'
+    & $composeCmd[0] $composeCmd[1] 'up' '-d' '--force-recreate'
 }
 
 $container = "expense-mssql"
