@@ -37,7 +37,7 @@ if (-Not (Test-Path $scriptPath)) {
 }
 
 & $scriptPath -saPassword $saPassword
-if ($LASTEXITCODE -ne 0) {
+if (-not $?) {
     Write-Error "DB initialization failed. Check Docker logs and try again."
     exit 1
 }
@@ -75,4 +75,7 @@ if (Check-CommandExists 'dotnet') {
 }
 
 Write-Output "Setup script completed successfully."
+
+
+
 
