@@ -17,10 +17,10 @@ Expense Tracker
    cd expense-tracker
 
 2. Run the setup script
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword "Your_password123"
 
    Nếu chỉ muốn dựng Docker + DB mà không mở app:
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123" -RunApp:$false
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword "Your_password123" -RunApp:$false
 
 3. What the script does
    - tạo SQL Server bằng Docker
@@ -43,14 +43,21 @@ Expense Tracker
   docker compose up -d
 - Nếu muốn reset DB sạch:
   docker compose down -v
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword "Your_password123"
 
 ## Repo structure
 - docker-compose.yml: cấu hình SQL Server trong Docker
 - data/init.sql: schema + seed dữ liệu khởi tạo DB
-- setup-all.ps1: entrypoint chính cho máy mới
-- start-dev-fixed.ps1: script khởi DB và init schema
+- scripts/setup/: entrypoint chính cho máy mới và script khởi DB
+- scripts/tests/: helper cho unit/integration/UI/smoke tests
+- scripts/tools/: small helpers (organize-files.ps1)
 - src/ExpenseTracker.WinForms: mã nguồn app
+
+File organizer helper
+- A small manifest lives at .file-catalog.json at the repo root that maps file patterns to canonical folders.
+- Use the helper to move loose files into the proper folder and (optionally) auto-create categories:
+  PowerShell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tools\organize-files.ps1 -Path "path\to\file.ext" -AutoCreate
+- Agents should call this helper (or consult .file-catalog.json) before committing new files so files are placed into the appropriate folder instead of scattered in the repo.
 
 ## Notes
 - Không commit file database binary (.mdf/.ldf/.ndf)
