@@ -99,17 +99,25 @@ while ($i -lt $max) {
 if ($i -ge $max) { Write-Error "SQL Server did not become ready in time (waited $($max*2) seconds)."; exit 1 }
 
 Write-Output "Initializing database (checking current state)..."
-# Determine repo root robustly: if this script is in scripts/ the repo root is parent; if this script is at repo root use PSScriptRoot.
-$candidateA = Join-Path (Split-Path -Parent $PSScriptRoot) 'data\init.sql'   # when script is in scripts\
-$candidateB = Join-Path $PSScriptRoot 'data\init.sql'                         # when script is at repo root
-if (Test-Path $candidateB) { 
-    $repoRoot = $PSScriptRoot
-    $initPathHost = $candidateB
-} elseif (Test-Path $candidateA) {
-    $repoRoot = Split-Path -Parent $PSScriptRoot
-    $initPathHost = $candidateA
-} else {
-    Write-Error "Cannot find data\init.sql in expected locations: $candidateB or $candidateA"
+# Determine repo root robustly: script can live at repo root or under scripts/setup.
+$repoRootCandidates = @(
+    $PSScriptRoot,
+    (Split-Path -Parent $PSScriptRoot),
+    (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+)
+$repoRoot = $null
+$initPathHost = $null
+foreach ($candidateRoot in $repoRootCandidates) {
+    $path = Join-Path $candidateRoot 'data\init.sql'
+    if (Test-Path $path) {
+        $repoRoot = $candidateRoot
+        $initPathHost = $path
+        break
+    }
+}
+if (-not $repoRoot -or -not $initPathHost) {
+    $candidates = $repoRootCandidates | ForEach-Object { Join-Path $_ 'data\init.sql' }
+    Write-Error "Cannot find data\init.sql in expected locations: $($candidates -join '; ')"
     exit 1
 }
 try { $initPathHost = (Resolve-Path $initPathHost -ErrorAction Stop).Path } catch { Write-Error "Cannot resolve init.sql path: $initPathHost"; exit 1 }

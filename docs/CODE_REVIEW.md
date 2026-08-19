@@ -85,10 +85,10 @@ Suggested fixes / actionable items
 
 Validation steps (how to verify fixes)
 --------------------------------------
-- Run unit tests: PowerShell -ExecutionPolicy Bypass -File .\run-unit-tests.ps1
-- Run integration tests: PowerShell -ExecutionPolicy Bypass -File .\run-integration-tests.ps1 -saPassword '<secret>'
+- Run unit tests: PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\run-unit-tests.ps1
+- Run integration tests: PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1 -saPassword '<secret>'
   - Verify DB initialized, tests run, and DB left in clean state.
-- Run smoke test remote: PowerShell -ExecutionPolicy Bypass -File .\smoke-test-remote.ps1 -saPassword '<secret>' -RunApp:$true
+- Run smoke test remote: PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\smoke-test-remote.ps1 -saPassword '<secret>' -RunApp:$true
   - Verify only one GUI process started and smoke results passed.
 - Double-click published exe on a clean machine with sqlconn.sample.txt copied as sqlconn.txt (local dev) and verify app connects to DB.
 - On CI: push branch with changes to ci.yml (update to use secrets) and verify unit tests pass; gate integration tests to a separate job with Docker available.

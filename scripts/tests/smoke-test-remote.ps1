@@ -2,7 +2,7 @@
 smoke-test-remote.ps1
 Script để chạy smoke test trên máy dev khác (Windows, PowerShell).
 Usage (from repo root):
-  PowerShell -ExecutionPolicy Bypass -File .\smoke-test-remote.ps1 -saPassword 'Your_password123' -RunApp:$false
+  PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\smoke-test-remote.ps1 -saPassword 'Your_password123' -RunApp:$false
 
 Yêu cầu trước khi chạy:
 - Docker Desktop hoặc Docker Engine đã cài và đang chạy
@@ -27,9 +27,9 @@ param(
 )
 
 # Normalize RunApp so the script accepts calling styles like:
-#  .\smoke-test-remote.ps1 -RunApp:$false
-#  PowerShell -File .\smoke-test-remote.ps1 -RunApp:$false
-#  PowerShell -Command "& { .\smoke-test-remote.ps1 -RunApp:$false }"
+#  .\scripts\tests\smoke-test-remote.ps1 -RunApp:$false
+#  PowerShell -File .\scripts\tests\smoke-test-remote.ps1 -RunApp:$false
+#  PowerShell -Command "& { .\scripts\tests\smoke-test-remote.ps1 -RunApp:$false }"
 $RunAppBool = $false
 if ($RunApp -is [System.Management.Automation.SwitchParameter]) {
     $RunAppBool = [bool]$RunApp
@@ -51,9 +51,16 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     Write-Log "dotnet CLI not found. Please install .NET SDK." ; exit 1
 }
 
-# Ensure running from repository root (look for setup-all.ps1)
-if (-not (Test-Path "$PSScriptRoot\setup-all.ps1")) {
-    Write-Log "Cannot find setup-all.ps1 in script folder. Run this script from the repository root." ; exit 1
+# Resolve repo root and setup script robustly whether this script is launched from repo root or scripts/tests
+$repoRootCandidates = @(
+    $PSScriptRoot,
+    (Split-Path -Parent $PSScriptRoot),
+    (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+)
+$repoRoot = $repoRootCandidates | Where-Object { $_ -and (Test-Path (Join-Path $_ 'src\ExpenseTracker.Tests')) } | Select-Object -First 1
+$setupScript = $repoRootCandidates | ForEach-Object { Join-Path $_ 'scripts\setup\setup-all.ps1' } | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $setupScript) {
+    Write-Log "Cannot find scripts\setup\setup-all.ps1 relative to this script. Ensure the repo layout is intact." ; exit 1
 }
 
 Write-Log "Starting smoke test: bring up Docker SQL Server and run integration tests"
@@ -65,7 +72,7 @@ if ($LASTEXITCODE -ne 0) { Write-Log "docker compose up failed (exit $LASTEXITCO
 
 # Call setup-all.ps1 to initialize DB and build solution
 Write-Log "Calling setup-all.ps1 to initialize DB and build projects"
-& "$PSScriptRoot\setup-all.ps1" -saPassword $saPassword -RunApp:$RunAppBool
+& $setupScript -saPassword $saPassword -RunApp:$RunAppBool
 if ($LASTEXITCODE -ne 0) { Write-Log "setup-all.ps1 failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
 
 # Configure SQL_CONN for the test run
@@ -74,7 +81,7 @@ Write-Log "Set SQL_CONN for this session (not saved to disk)"
 
 # Build tests and run them
 Write-Log "Building and running tests (src\ExpenseTracker.Tests)"
-Push-Location -Path "$PSScriptRoot\src\ExpenseTracker.Tests"
+Push-Location -Path (Join-Path $repoRoot 'src\ExpenseTracker.Tests')
 try {
     dotnet restore
     if ($LASTEXITCODE -ne 0) { Write-Log "dotnet restore failed"; exit $LASTEXITCODE }
@@ -98,7 +105,7 @@ if ($RunAppBool) {
     if ($proc) {
         Write-Log "GUI already running (Id=$($proc.Id)); not starting new process."
     } else {
-        $exe = "$PSScriptRoot\src\ExpenseTracker.WinForms\bin\Debug\net10.0-windows\ExpenseTracker.WinForms.exe"
+        $exe = (Join-Path $repoRoot 'src\ExpenseTracker.WinForms\bin\Debug\net10.0-windows\ExpenseTracker.WinForms.exe')
         if (Test-Path $exe) {
             Write-Log "Starting GUI: $exe"
             Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)

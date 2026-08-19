@@ -38,3 +38,21 @@
 - Focus on what changed, why it changed, and how to validate it.
 - Keep instructions short and clear; do not over-explain basic tasks.
 - When asked to review code, prefer concrete issues over style-only comments.
+
+## File organization policy for agents
+- Before creating or moving files, check whether the repository provides an organization manifest (e.g., .file-catalog.json at repo root). If present, follow it (place files into the matching category/folder).
+- If there is no manifest or no matching category, do NOT autonomously scatter files in the repo. Instead produce a structured proposal containing:
+  - proposed destination(s),
+  - rationale (matching by extension or similar patterns),
+  - a dry-run listing of the actions to be taken,
+  - and a manifest diff if you intend to add a category.
+- Require explicit human approval before creating new top-level categories or updating repository-wide manifests. Use auto-create only when a maintainer has opt-ed in.
+- Prefer returning machine-readable proposals (JSON) so maintainers or automation can accept or reject programmatically. Example response shape:
+  {
+    "actions": [ {"from":"src/newfile.ext","to":"docs/newfile.ext","reason":"*.md"} ],
+    "manifestDiff": { /* optional */ },
+    "dryRun": true
+  }
+- If the repo does later add a manifest, consult it on subsequent edits and avoid duplicating categories.
+
+Agents: put organization proposals and dry-run outputs into the PR description or into the review comment so reviewers can see what changed and why.
