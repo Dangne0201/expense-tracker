@@ -1,0 +1,5 @@
+# Copy this file to 'sqlconn.txt' next to the executable and fill in your credentials.
+# Example:
+# Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=Your_password123;TrustServerCertificate=True;Encrypt=False;
+
+Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=;TrustServerCertificate=True;Encrypt=False;

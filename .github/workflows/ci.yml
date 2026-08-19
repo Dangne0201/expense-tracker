@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '10.0.x'
+      - name: Start SQL Server (Docker Compose)
+        run: |
+          docker compose up -d
+        shell: pwsh
+      - name: Wait for SQL Server to be healthy
+        run: |
+          $tries = 0
+          while ($tries -lt 30) {
+            $status = (docker inspect --format '{{json .State.Health}}' expense-mssql | ConvertFrom-Json).Status
+            if ($status -eq 'healthy') { Write-Output 'SQL Server healthy'; break }
+            Start-Sleep -s 5
+            $tries++
+          }
+        shell: pwsh
+      - name: Build solution
+        run: dotnet build ExpenseTracker.sln -c Release
+      - name: Run tests
+        run: dotnet test --no-build --verbosity normal
+        env:
+          SQL_CONN: "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=Your_password123;TrustServerCertificate=True;Encrypt=False;"
+        shell: pwsh
+      - name: Tear down
+        if: always()
+        run: docker compose down
+        shell: pwsh
