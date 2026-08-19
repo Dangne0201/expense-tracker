@@ -8,9 +8,18 @@ namespace ExpenseTracker.Tests
         [Fact]
         public void InitSqlContainsCategoriesTable()
         {
-            var path = Path.Combine("..", "..", "..", "..", "data", "init.sql");
-            Assert.True(File.Exists(path), $"init.sql not found at {path}");
-            var text = File.ReadAllText(path);
+            // Robustly find data/init.sql by walking upward from current directory
+            var dir = Directory.GetCurrentDirectory();
+            string found = null;
+            while (!string.IsNullOrEmpty(dir))
+            {
+                var candidate = Path.Combine(dir, "data", "init.sql");
+                if (File.Exists(candidate)) { found = candidate; break; }
+                var parent = Directory.GetParent(dir);
+                dir = parent?.FullName;
+            }
+            Assert.False(string.IsNullOrEmpty(found), "init.sql not found in repository (searched upward from current dir)");
+            var text = File.ReadAllText(found);
             Assert.Contains("CREATE TABLE dbo.Categories", text);
             Assert.Contains("CREATE TABLE dbo.Expenses", text);
         }
