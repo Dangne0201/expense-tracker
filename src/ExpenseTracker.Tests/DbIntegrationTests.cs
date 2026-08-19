@@ -7,8 +7,52 @@ namespace ExpenseTracker.Tests
 {
     public class DbIntegrationTests
     {
-        private string GetConn() => Environment.GetEnvironmentVariable("SQL_CONN")
-            ?? "Server=127.0.0.1,1433;Database=ExpenseDb;User Id=sa;Password=Your_password123;Encrypt=True;TrustServerCertificate=True;";
+        private static string NormalizeConnectionString(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return connectionString;
+            }
+
+            var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            var normalized = new System.Collections.Generic.List<string>();
+            var seenEncrypt = false;
+            var seenTrust = false;
+
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    continue;
+                }
+
+                var key = trimmed.Split('=')[0].Trim();
+                if (string.Equals(key, "Encrypt", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized.Add("Encrypt=False");
+                    seenEncrypt = true;
+                    continue;
+                }
+
+                if (string.Equals(key, "TrustServerCertificate", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized.Add("TrustServerCertificate=True");
+                    seenTrust = true;
+                    continue;
+                }
+
+                normalized.Add(trimmed);
+            }
+
+            if (!seenEncrypt) normalized.Add("Encrypt=False");
+            if (!seenTrust) normalized.Add("TrustServerCertificate=True");
+
+            return string.Join(";", normalized) + ";";
+        }
+
+        private string GetConn() => NormalizeConnectionString(Environment.GetEnvironmentVariable("SQL_CONN")
+            ?? "Server=127.0.0.1,1433;Database=ExpenseDb;User Id=sa;Password=Your_password123;Encrypt=False;TrustServerCertificate=True;");
 
         [Fact]
         public void CanInsertAndReadExpense()

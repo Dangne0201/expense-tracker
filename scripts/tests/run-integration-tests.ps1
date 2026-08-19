@@ -12,7 +12,8 @@ Write-Host "Starting dev DB and running integration tests (Configuration=$Config
 
 # Start DB and init (do not launch GUI)
 $setupScript = Join-Path $PSScriptRoot '..\setup\setup-all.ps1'
-PowerShell -Command "& { & '$setupScript' -saPassword '$saPassword' -RunApp:$false }" || throw "setup-all failed"
+& powershell -NoProfile -ExecutionPolicy Bypass -File $setupScript -saPassword $saPassword -RunApp:$false
+if ($LASTEXITCODE -ne 0) { throw "setup-all failed" }
 
 # Give DB some time to be ready (setup-all has waits, but ensure)
 Start-Sleep -Seconds 5
@@ -20,10 +21,12 @@ Start-Sleep -Seconds 5
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 # Build & run integration tests
-dotnet build (Join-Path $repoRoot 'src\ExpenseTracker.sln') -c $Configuration || throw "Build failed"
+& dotnet build (Join-Path $repoRoot 'ExpenseTracker.sln') -c $Configuration
+if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 # Run tests (if tests are categorized you can filter by Trait/Category)
 # Here run all tests in the test project; integration tests should be stable and use rollback/transaction
-dotnet test (Join-Path $repoRoot 'src\ExpenseTracker.Tests') -c $Configuration --no-build --verbosity minimal
+& dotnet test (Join-Path $repoRoot 'src\ExpenseTracker.Tests') -c $Configuration --no-build --verbosity minimal
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Integration tests finished. Consider stopping containers if you started them for this run."

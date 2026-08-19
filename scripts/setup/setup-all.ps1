@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$saPassword = "Your_password123",
     [Parameter()] [object]$RunApp = $true
 )
@@ -51,10 +51,10 @@ if (-not $dbReady) {
 Write-Log "SQL Server is accepting connections. (TCP)"
 
 # Set SQL_CONN so launched app inherits correct connection string
-$env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+$env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 # Persist for the current user so GUI apps launched after this script can read it as well
 # Set SQL_CONN so launched app inherits correct connection string (process-level only)
-$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 $env:SQL_CONN = $sqlConn
 Write-Log "Set SQL_CONN for this process. Will create a batch wrapper to launch the GUI with the same value (password not echoed in logs)"
 Write-Log "Set SQL_CONN for this process; a batch wrapper will be created to launch the GUI with the same value (password not echoed)"
@@ -85,14 +85,14 @@ if (-not $proj) {
         if ($RunAppBool) {
             Write-Log "Starting application exe: $exe"
             # Ensure sqlConn includes provided password
-            $sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+            $sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
             $env:SQL_CONN = $sqlConn
 
             $bat = Join-Path $PSScriptRoot "start-expense-app.bat"
             # Create batch wrapper that sets SQL_CONN including TrustServerCertificate to avoid cert trust errors
             $batContent = @"
 @echo off
-set "SQL_CONN=Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+set "SQL_CONN=Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 start "" "$exe"
 "@
             Set-Content -Path $bat -Value $batContent -Encoding ASCII

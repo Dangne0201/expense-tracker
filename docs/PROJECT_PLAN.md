@@ -69,6 +69,7 @@ Mục tiêu: đảm bảo chương trình hoạt động trên máy phát triể
 
 - Tạo các tác vụ theo bước để dễ theo dõi: smoke test trên máy hiện tại, test trên máy khác, unit tests, integration tests, manual UI test, code review, cập nhật CI, cập nhật tài liệu và đóng gói/release.
 
+
 2. Kiểm thử trên máy hiện tại (smoke test)
 
 - Mục tiêu: xác nhận build thành công và các luồng chính hoạt động.
@@ -117,8 +118,8 @@ Mục tiêu: đảm bảo chương trình hoạt động trên máy phát triể
 8. Tài liệu và phát hành
 
 - Cập nhật README với các bước test nhanh và FAQ troubleshooting.
-- Thêm CHANGELOG.md và tag release (ví dụ v0.1.0).
-- Chuẩn bị artifact: dotnet publish hoặc tạo installer nếu cần.
+- Thêm phiên bản release (ví dụ v0.1.0).
+
 
 9. Vận hành và hậu release
 

@@ -14,7 +14,9 @@ Write-Host "Building WinForms app and running UI tests (Configuration=$Configura
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 # Build the WinForms app in Debug (so the exe is available where tests expect it)
-dotnet build (Join-Path $repoRoot 'src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj') -c $Configuration || throw "WinForms build failed"
+& dotnet build (Join-Path $repoRoot 'src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj') -c $Configuration
+if ($LASTEXITCODE -ne 0) { throw "WinForms build failed" }
 
 # Build and run UI tests
-dotnet test (Join-Path $repoRoot 'src\ExpenseTracker.UiTests') -c $Configuration --no-build --verbosity minimal
+& dotnet test (Join-Path $repoRoot 'src\ExpenseTracker.UiTests') -c $Configuration --no-build --verbosity minimal
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

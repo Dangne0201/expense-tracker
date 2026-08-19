@@ -1,124 +1,133 @@
-CODE REVIEW — ExpenseTracker (Phase 6)
-Date: 2026-08-19
-Reviewer: Copilot (AI assistant using Copilot CLI runtime in VS Code)
+# Code Review — Expense Tracker
 
-Summary
--------
-Tổng quan: đây là code review cho các thay đổi liên quan đến Phase 6 (testing, smoke scripts, packaging, small runtime conveniences). Những thay đổi chính bao gồm:
-- Thêm test scaffolding (unit, integration) và 1 dự án UI test (FlaUI).
-- Thêm smoke-test-remote.ps1 và các run-*.ps1 helpers.
-- Thay đổi Program.cs để đọc sqlconn.txt cạnh exe khi biến môi trường SQL_CONN thiếu.
-- Sửa docker-compose healthcheck (TCP-based) để tránh false-unhealthy khi thiếu sqlcmd.
-- Cập nhật scripts để tránh khởi chạy GUI hai lần và sửa lỗi PowerShell -RunApp parameter handling.
+## Mục tiêu
 
-Scope
------
-Đánh giá chỉ bao gồm các file thay đổi gần đây liên quan đến Phase 6: scripts (.ps1), Program.cs, docker-compose.yml, test projects, và files tài liệu (TESTS_README.md, CODE_REVIEW.md, CHANGELOG.md).
+Tài liệu này dùng để review chất lượng mã nguồn, quy trình kiểm thử và khả năng bảo trì của dự án Expense Tracker trước khi phát hành hoặc mở rộng thêm tính năng. Mục tiêu không chỉ là kiểm tra app có chạy được hay không, mà còn đánh giá xem repo có đủ sạch, dễ setup, dễ review, dễ mở rộng và an toàn khi phát triển tiếp hay không.
 
-High-severity findings (need xử lý sớm)
---------------------------------------
-1) Program.cs: reading sqlconn.txt next to exe
-   - Vấn đề: sqlconn.txt có thể chứa credentials (SA password). Mặc định đọc file này khi exe được double-click có thể vô tình để lộ secret hoặc bị commit nếu người dev không cấu hình .gitignore đúng.
-   - Rủi ro: secrets leakage, non-reproducible runtime behavior giữa dev và prod.
-   - Recommendation:
-     - Treat sqlconn.txt strictly as developer convenience. Ensure it's listed in .gitignore and include sqlconn.sample.txt as template (already done).
-     - Add a clear startup log message (or MessageBox for dev) saying "Using sqlconn.txt from exe folder (developer override)" so users know it's using a local file.
-     - Prefer an opt-in approach: only read sqlconn.txt when a special file name exists (sqlconn.local.txt) or when an env var like USE_LOCAL_SQLCONN=1 is present.
-     - Long-term: replace with a secure config flow (user prompt, per-user config, or installer-created config) instead of plaintext credential files.
+## Phạm vi review
 
-2) setup-all.ps1 / PowerShell parameter handling
-   - Vấn đề: Passing -RunApp:$false to a script invoked with PowerShell -File can produce type conversion errors because the argument becomes a string.
-   - Current mitigation: callers were normalized (smoke-test uses PowerShell -Command wrapping). But the root script should be robust.
-   - Recommendation: normalize RunApp inside setup-all.ps1 to accept flexible inputs and coerce to boolean. Example snippet below.
+Review tập trung vào các khía cạnh chính sau:
 
-Suggested snippet for setup-all.ps1 (coerce RunApp to boolean):
+- cấu trúc repo và tổ chức file
+- cách khởi tạo môi trường dev
+- cách kết nối và tương tác với SQL Server
+- tính ổn định của các tính năng CRUD
+- việc xử lý lỗi và validation dữ liệu
+- sự sẵn có của kiểm thử (unit/integration/manual QA)
+- tài liệu setup và review cho người mới
+- các yếu tố an toàn như không commit secret và không commit tập tin nhạy cảm
 
-# --- begin snippet ---
-param(
-    [Parameter()] [string] $saPassword,
-    [Parameter()] [object] $RunApp
-)
+## Tiêu chí đánh giá
 
-# Normalize
-function To-Bool($v) {
-    if ($null -eq $v) { return $false }
-    if ($v -is [System.Management.Automation.SwitchParameter]) { return $v.IsPresent }
-    try { return [bool]::Parse($v.ToString()) } catch { return $false }
-}
-$RunAppBool = To-Bool $RunApp
-# Use $RunAppBool in the script
-# --- end snippet ---
+### 1. Chất lượng mã nguồn
 
-This change makes setup-all.ps1 tolerant of both "-RunApp" (switch), "-RunApp:$false", and calls through -File.
+- Mã nên rõ ràng, dễ đọc và dễ hiểu.
+- Tên biến, tên hàm, tên class nên phản ánh đúng chức năng.
+- Không nên để logic nghiệp vụ lẫn trong giao diện UI quá nhiều.
+- Có nên tách logic sang lớp/service riêng nếu logic phức tạp hơn.
+- SQL query nên dùng parameterized queries để tránh SQL injection.
 
-Medium-severity findings
-------------------------
-1) smoke-test-remote.ps1
-   - Good: fixed duplicate launches and empty ArgumentList error.
-   - Recommend: add explicit exit codes (e.g., exit 0 on success, exit 1 on failure) and more verbose logging for remote diagnostics. Also consider a --no-gui option separate from RunApp to avoid ambiguity.
+### 2. Tính ổn định của ứng dụng
 
-2) UI test project / framework targets
-   - The repo now contains ExpenseTracker.UiTests targeting net10.0-windows. Ensure FlaUI package versions chosen are compatible with target runtime on your machines/CI. If CI runs net7 or net8 by default, adjust target frameworks or add multi-targeting.
+- App nên khởi động được trên máy mới mà không cần cài SQL Server cục bộ.
+- Nếu DB không sẵn sàng, app nên hiển thị thông báo rõ ràng thay vì treo.
+- Các thao tác thêm/sửa/xóa danh mục và chi tiêu cần có xử lý lỗi tốt.
+- Dữ liệu đầu vào phải validate đúng kiểu: số tiền, tên danh mục, ngày tháng, note.
 
-Low-severity / housekeeping
---------------------------
-1) CI workflow (.github/workflows/ci.yml)
-   - Contains placeholder SA password. Must be replaced with GitHub secrets before enabling.
-   - Recommend: add a separate CI job for integration tests that runs only on PRs to specific branches or when label added, to avoid long runs on every push.
+### 3. Môi trường dev và setup
 
-2) Artifact creation & release
-   - artifacts/expense-tracker-v0.1.0.zip exists locally. Recommend moving artifact creation into CI or release pipeline so builds are reproducible.
+- Repo nên có cách chạy đơn giản: clone → setup → build → chạy.
+- SQL Server nên chạy bằng Docker để dễ tái tạo trên máy khác.
+- Dữ liệu schema và seed nên nằm trong file mã nguồn, ví dụ data/init.sql.
+- Không nên lưu database binary như .mdf/.ldf vào Git.
+- README và script setup cần ngắn, rõ, dễ làm theo.
 
-3) Tests: separation & naming
-   - Keep unit vs integration tests clearly separated (Traits or separate test projects). Currently both live in src/ExpenseTracker.Tests; prefer markers [Trait] or separate projects (ExpenseTracker.IntegrationTests) for clearer CI filtering.
+### 4. Kiểm thử
 
-Suggested fixes / actionable items
----------------------------------
-1) Make setup-all.ps1 robust to RunApp input (see snippet above).
-2) Update Program.cs behavior to be explicit/opt-in or add clear logging when using local sqlconn.txt. Example alternatives:
-   - Read sqlconn.local.txt only when USE_LOCAL_SQLCONN env var set.
-   - Or show a single MessageBox on startup if local override is used (for dev awareness).
-3) Add explicit exit codes and more verbose logging to smoke-test-remote.ps1 (so remote dev can paste full logs when something fails).
-4) Split tests into two projects or use [Trait] so CI can run unit tests fast and integration tests in a separate job.
-5) Update CI workflow to use repository secrets for SA password and add a gating policy for integration tests.
-6) Add a short contributor doc (or update TESTS_README.md) to explain how to run UI tests and that they require an interactive desktop.
+- Cần có unit tests cho logic quan trọng.
+- Có integration tests cho truy vấn DB và CRUD.
+- Có smoke test để kiểm tra luồng chính trên máy local.
+- Manual QA nên test các trường hợp lỗi, dữ liệu không hợp lệ và kết nối DB không sẵn sàng.
 
-Validation steps (how to verify fixes)
---------------------------------------
-- Run unit tests: PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\run-unit-tests.ps1
-- Run integration tests: PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1 -saPassword '<secret>'
-  - Verify DB initialized, tests run, and DB left in clean state.
-- Run smoke test remote: PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\smoke-test-remote.ps1 -saPassword '<secret>' -RunApp:$true
-  - Verify only one GUI process started and smoke results passed.
-- Double-click published exe on a clean machine with sqlconn.sample.txt copied as sqlconn.txt (local dev) and verify app connects to DB.
-- On CI: push branch with changes to ci.yml (update to use secrets) and verify unit tests pass; gate integration tests to a separate job with Docker available.
+### 5. Dễ review và dễ bảo trì
 
-Files changed in Phase 6 (reference)
-------------------------------------
-- src/ExpenseTracker.WinForms/Program.cs       (added sqlconn.txt read convenience)
-- smoke-test-remote.ps1                        (RunApp handling, avoid duplicate launch)
-- run-unit-tests.ps1, run-integration-tests.ps1, run-ui-tests.ps1
-- src/ExpenseTracker.UiTests/ (new project + tests)
-- docker-compose.yml                            (healthcheck changed to TCP)
-- TESTS_README.md, CODE_REVIEW.md, CHANGELOG.md
-- .github/workflows/ci.yml                       (CI skeleton)
+- Repo nên có cấu trúc tương đối rõ: source code, scripts, data, docs.
+- Tài liệu nên ngắn nhưng đủ để người mới build và test.
+- Các file liên quan nên có tên và vị trí nhất quán.
+- Không nên để file nhạy cảm hoặc output build loang trong repo.
 
-Follow-ups (recommended next PRs)
----------------------------------
-1) Make setup-all.ps1 change (parameter normalization) and unit-test that calling styles work both via -File and -Command.
-2) Split tests: create ExpenseTracker.UnitTests + ExpenseTracker.IntegrationTests projects (or mark tests) and adjust run scripts and CI accordingly.
-3) Decide Program.cs behavior (Keep dev-convenience vs Revert) and implement opt-in approach if keeping.
-4) Harden smoke-test-remote.ps1: add --logfile option to save run output for easier troubleshooting by remote developer.
-5) Add a small CONTRIBUTING.md with quick pointers to run tests and run smoke tests on other machines.
+## Checklist review bắt buộc
 
-Notes on security & process
----------------------------
-- Avoid committing any sqlconn.txt with real credentials. Use sqlconn.sample.txt and local .gitignore (already added).
-- Use GitHub secrets for SA passwords and never commit plain-text secrets into repo.
+- Có review lại naming conventions chưa?
+- Có chạy setup script trên môi trường mới chưa?
+- Có kiểm tra database schema có khởi tạo tự động không?
+- Có xem lại bảng Categories và Expenses có đúng cấu trúc chưa?
+- Có validate input khi thêm category/expense chưa?
+- Có xử lý trường hợp SQL Server chưa bắt đầu chưa?
+- Có đọc lại README để chắc chắn các lệnh còn đúng không?
+- Có xóa file build artifact, log, dữ liệu local không cần thiết chưa?
+- Có kiểm tra secret / password chưa hardcode vào code không?
+- Có chạy smoke test / build / test chưa?
 
-If you want, I can next:
-- Implement the setup-all.ps1 normalization snippet and run a local smoke/test to verify (will edit that script), or
-- Create separate test projects (unit vs integration) and update CI workflow, or
-- Modify Program.cs to make local sqlconn override opt-in and add a log message.
+## Kết quả review mong muốn
 
-Bạn muốn mình tiếp tục với bước nào trong 3 lựa chọn trên? Nếu muốn, mình sẽ thực hiện thay đổi (edit files) và chạy build/tests để verify rồi báo kết quả.
+Một dự án tốt nên đạt được các tiêu chí sau:
+
+1. Build và chạy được trên máy dev local.
+2. Có thể khởi tạo database bằng Docker hoặc script đơn giản.
+3. Có khả năng tái tạo môi trường mới nhanh chóng.
+4. Có unit/integration test hoặc ít nhất smoke test cho luồng chính.
+5. Không chứa dữ liệu nhạy cảm hay file tạm trong Git.
+6. Có README và hướng dẫn setup đủ rõ để thành viên mới tiếp cận dễ dàng.
+7. Có khả năng mở rộng thêm tính năng mà không phá vỡ cấu trúc hiện tại.
+
+## Vấn đề cần lưu ý trong dự án Expense Tracker
+
+### 1. Kết nối database
+
+- App phải rõ ràng khi chọn connection string.
+- Khi SQL Server không chạy, app cần báo lỗi có thể hiểu, không để crash không rõ nguyên nhân.
+- Nên ưu tiên logic: lấy biến môi trường SQL_CONN, nếu không có thì fallback tới LocalDB hoặc Docker-local nếu cần.
+
+### 2. Validation dữ liệu
+
+- Tên category không được rỗng.
+- Số tiền phải là số hợp lệ và không âm hoặc theo quy định của business.
+- Nếu không chọn category thì không cho thêm expense.
+- Khi có lỗi xảy ra, UI nên hiển thị thông báo rõ ràng hơn.
+
+### 3. Dữ liệu và repo hygiene
+
+- schema và seed dữ liệu nên được lưu trong data/init.sql.
+- Không commit file .mdf/.ldf/.ndf hoặc các file logs local.
+- Không commit secret hoặc password thực tế vào Git.
+- Build output và file publish nên nằm trong folder build artifact hoặc ignore khi commit.
+
+### 4. Test và CI
+
+- Unit tests cần chạy nhanh và không phụ thuộc DB.
+- Integration tests nên chạy trên SQL Server container hoặc môi trường có DB thực.
+- Tối thiểu phải có smoke test cho luồng chính.
+- Nếu có CI, nên chạy build + unit tests trên PR và chạy integration tests khi có Docker/kho dữ liệu sẵn sàng.
+
+## Khuyến nghị hành động
+
+1. Hoàn thiện quick-start cho người mới trong README.
+2. Kiểm tra lại các scripts PowerShell để đảm bảo đường dẫn và tham số hoạt động ổn định.
+3. Đảm bảo database init hoàn toàn có thể tái tạo từ file SQL.
+4. Bổ sung test case cho luồng thêm danh mục và chi tiêu.
+5. Thêm check lỗi rõ ràng trên UI và log startup.
+6. Cập nhật CHANGELOG sau mỗi đợt phát triển mang tính chất user-visible.
+7. Đảm bảo app không lưu password vào repo hoặc file local không kiểm soát được.
+
+## Kết luận
+
+Dự án Expense Tracker có nền tảng tốt cho một ứng dụng học tập và demo: repo sạch, có Docker-based setup, schema được tạo lại từ script, và có triển vọng dễ mở rộng. Tuy nhiên, để đạt chuẩn review tốt, cần tiếp tục bổ sung các tiêu chí sau:
+
+- validation rõ ràng,
+- tests đầy đủ hơn,
+- lỗi xử lý tốt hơn,
+- tài liệu setup và changelog được cập nhật liên tục,
+- tính an toàn và hygiene của repo được duy trì.
+
+Nếu dự án tiếp tục phát triển theo hướng này, repo sẽ trở thành một base khá ổn cho demo, training và thậm chí mở rộng thành một ứng dụng quản lý ngân sách thực tế hơn.
