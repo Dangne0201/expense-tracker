@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Drawing;
 using System.Diagnostics;
@@ -274,18 +274,63 @@ namespace ExpenseTracker.WinForms
             var envConn = Environment.GetEnvironmentVariable("SQL_CONN");
             if (!string.IsNullOrWhiteSpace(envConn))
             {
-                return envConn;
+                return NormalizeConnectionStringForLocalSql(envConn);
             }
 
             // Fallback to the user-level variable if the app was started from a shell that persisted it.
             try
             {
-                return Environment.GetEnvironmentVariable("SQL_CONN", EnvironmentVariableTarget.User);
+                var userConn = Environment.GetEnvironmentVariable("SQL_CONN", EnvironmentVariableTarget.User);
+                return string.IsNullOrWhiteSpace(userConn) ? null : NormalizeConnectionStringForLocalSql(userConn);
             }
             catch
             {
                 return null;
             }
+        }
+
+        private static string NormalizeConnectionStringForLocalSql(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return connectionString;
+            }
+
+            var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            var normalized = new System.Collections.Generic.List<string>();
+            var seenEncrypt = false;
+            var seenTrust = false;
+
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    continue;
+                }
+
+                var key = trimmed.Split('=')[0].Trim();
+                if (string.Equals(key, "Encrypt", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized.Add("Encrypt=False");
+                    seenEncrypt = true;
+                    continue;
+                }
+
+                if (string.Equals(key, "TrustServerCertificate", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized.Add("TrustServerCertificate=True");
+                    seenTrust = true;
+                    continue;
+                }
+
+                normalized.Add(trimmed);
+            }
+
+            if (!seenEncrypt) normalized.Add("Encrypt=False");
+            if (!seenTrust) normalized.Add("TrustServerCertificate=True");
+
+            return string.Join(";", normalized) + ";";
         }
 
         private string GetDefaultDockerConnectionString()
@@ -299,7 +344,7 @@ namespace ExpenseTracker.WinForms
                 password = "Your_password123";
             }
 
-            return $"Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password={password};TrustServerCertificate=True;";
+            return $"Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password={password};Encrypt=False;TrustServerCertificate=True;";
         }
 
         /// <summary>
