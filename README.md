@@ -17,10 +17,10 @@ Expense Tracker
    cd expense-tracker
 
 2. Run the setup script
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword "Your_password123"
 
    Nếu chỉ muốn dựng Docker + DB mà không mở app:
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123" -RunApp:$false
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword "Your_password123" -RunApp:$false
 
 3. What the script does
    - tạo SQL Server bằng Docker
@@ -43,14 +43,15 @@ Expense Tracker
   docker compose up -d
 - Nếu muốn reset DB sạch:
   docker compose down -v
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-all.ps1 -saPassword "Your_password123"
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword "Your_password123"
 
 ## Repo structure
 - docker-compose.yml: cấu hình SQL Server trong Docker
 - data/init.sql: schema + seed dữ liệu khởi tạo DB
-- setup-all.ps1: entrypoint chính cho máy mới
-- start-dev-fixed.ps1: script khởi DB và init schema
+- scripts/setup/: entrypoint chính cho máy mới và script khởi DB
+- scripts/tests/: helper cho unit/integration/UI/smoke tests
 - src/ExpenseTracker.WinForms: mã nguồn app
+
 
 ## Notes
 - Không commit file database binary (.mdf/.ldf/.ndf)

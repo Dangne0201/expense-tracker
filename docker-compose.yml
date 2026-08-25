@@ -1,4 +1,4 @@
-﻿version: '3.8'
+﻿version: "3.8"
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -14,10 +14,12 @@ services:
       # Using Docker-managed named volume 'mssqldata' for SQL Server data to avoid host-bind permission issues on Windows; this keeps data persistent across container restarts without binding to host paths.
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "SA", "-P", "Your_password123", "-Q", "SELECT 1"]
+      # test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "SA", "-P", "Your_password123", "-Q", "SELECT 1"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/1433' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
 volumes:
   mssqldata: {}

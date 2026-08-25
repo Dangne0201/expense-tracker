@@ -39,3 +39,8 @@ data/*.ldf
 
 # other
 .properties
+n# local sqlconn file (should not be committed if it contains secrets)
+sqlconn.txt
+src\ExpenseTracker.WinForms\bin\Debug\net10.0-windows\sqlconn.txt
+src\ExpenseTracker.WinForms\bin\Release\net10.0-windows\publish\sqlconn.txt
+

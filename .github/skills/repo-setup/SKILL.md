@@ -28,7 +28,7 @@ This repo is a small WinForms app backed by SQL Server in Docker. The intended s
 
 Use the smallest valid setup path:
 
-- PowerShell: `./setup-all.ps1`
+- PowerShell: `./scripts/setup/setup-all.ps1`
 - Or manual Docker workflow: `docker compose up -d`
 - Build the app: `dotnet build src/ExpenseTracker.WinForms/ExpenseTracker.WinForms.csproj`
 

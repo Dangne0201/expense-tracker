@@ -1,7 +1,20 @@
-﻿param(
+param(
     [string]$saPassword = "Your_password123",
-    [switch]$RunApp = $true
+    [Parameter()] [object]$RunApp = $true
 )
+
+# Normalize RunApp so the script accepts calling styles like:
+#  .\scripts\setup\setup-all.ps1 -RunApp:$false
+#  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -saPassword 'Your_password123' -RunApp:$false
+$RunAppBool = $true
+if ($RunApp -is [System.Management.Automation.SwitchParameter]) {
+    $RunAppBool = [bool]$RunApp
+} elseif ($RunApp -is [string]) {
+    $s = $RunApp.ToString().Trim().ToLower()
+    if ($s -in @('true','1','yes','$true')) { $RunAppBool = $true } else { $RunAppBool = $false }
+} else {
+    try { $RunAppBool = [bool]$RunApp } catch { $RunAppBool = $false }
+}
 
 function Write-Log { param($m) Write-Output "[setup-all-docker] $m" }
 
@@ -38,21 +51,27 @@ if (-not $dbReady) {
 Write-Log "SQL Server is accepting connections. (TCP)"
 
 # Set SQL_CONN so launched app inherits correct connection string
-$env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+$env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 # Persist for the current user so GUI apps launched after this script can read it as well
 # Set SQL_CONN so launched app inherits correct connection string (process-level only)
-$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 $env:SQL_CONN = $sqlConn
 Write-Log "Set SQL_CONN for this process. Will create a batch wrapper to launch the GUI with the same value (password not echoed in logs)"
 Write-Log "Set SQL_CONN for this process; a batch wrapper will be created to launch the GUI with the same value (password not echoed)"
 
 # Optionally build and run the WinForms app (will inherit SQL_CONN)
-# Resolve project path robustly depending on where this script is located (repo root vs scripts/)
-$projCandidates = @(
-    "$PSScriptRoot\src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj",
-    "$PSScriptRoot\..\src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj"
+# Resolve project path robustly depending on where this script is located (repo root vs scripts/setup)
+$repoRootCandidates = @(
+    $PSScriptRoot,
+    (Split-Path -Parent $PSScriptRoot),
+    (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 )
-$proj = $projCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$repoRoot = $repoRootCandidates | Where-Object { $_ -and (Test-Path (Join-Path $_ 'src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj')) } | Select-Object -First 1
+$projCandidates = @(
+    "$repoRoot\src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj",
+    "$PSScriptRoot\..\..\src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj"
+)
+$proj = $projCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $proj) {
     Write-Log "WinForms project file not found at expected locations; skipping build/run. Searched: $($projCandidates -join ', ')"
 } elseif (Get-Command dotnet -ErrorAction SilentlyContinue) {
@@ -63,17 +82,17 @@ if (-not $proj) {
     Write-Log "Build succeeded."
     $exe = Join-Path (Split-Path $projPath -Parent) 'bin\Debug\net10.0-windows\ExpenseTracker.WinForms.exe'
     if (Test-Path $exe) {
-        if ($RunApp) {
+        if ($RunAppBool) {
             Write-Log "Starting application exe: $exe"
             # Ensure sqlConn includes provided password
-            $sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+            $sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
             $env:SQL_CONN = $sqlConn
 
             $bat = Join-Path $PSScriptRoot "start-expense-app.bat"
             # Create batch wrapper that sets SQL_CONN including TrustServerCertificate to avoid cert trust errors
             $batContent = @"
 @echo off
-set "SQL_CONN=Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;TrustServerCertificate=True;"
+set "SQL_CONN=Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 start "" "$exe"
 "@
             Set-Content -Path $bat -Value $batContent -Encoding ASCII
