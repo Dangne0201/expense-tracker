@@ -1,11 +1,11 @@
 ﻿param(
-    [string]$saPassword = "Your_password123"
+    [string]\$saPassword = "Your_password123"
 )
 
 function Write-Log { param($m) Write-Output "[fix-sqlconn] $m" }
 
 # Build connection string using provided SA password (do not echo password in logs)
-$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
+$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=\$saPassword;Encrypt=False;TrustServerCertificate=True;"
 
 # Export for current process so child processes inherit it
 $env:SQL_CONN = $sqlConn
@@ -33,8 +33,6 @@ Write-Log "Batch wrapper created at $bat (contains connection string)."
 
 # Done
 Write-Log "fix-sqlconn complete."
-
-
 
 
 

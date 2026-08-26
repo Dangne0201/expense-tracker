@@ -112,5 +112,3 @@ if (-not $proj) {
 
 Write-Log "Docker-based setup complete."
 
-
-

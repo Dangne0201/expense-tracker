@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$saPassword = "Your_password123"
+    [string]\$saPassword = "Your_password123"
 )
 
 Write-Output "Starting development SQL Server container (docker compose up -d) using best available docker command..."
@@ -24,8 +24,8 @@ try { & $dockerCmd 'compose' 'version' > $null 2>&1; $composeCmd = @($dockerCmd,
 
 Write-Output "Running: docker compose up -d"
 # Export SA_PASSWORD into the environment so docker-compose can pick it up if compose file uses ${SA_PASSWORD}
-if ($saPassword) {
-    $env:SA_PASSWORD = $saPassword
+if (\$saPassword) {
+    $env:SA_PASSWORD = \$saPassword
     Write-Output "Exported SA_PASSWORD environment variable for docker compose (hidden)."
 }
 if ($composeCmd -is [array] -and $composeCmd.Count -eq 1) {
@@ -44,7 +44,7 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($volName)) {
         Write-Output "Detected data volume: $volName. Checking ownership of master.mdf..."
         # Use an ephemeral alpine container to inspect owner of master.mdf if present
-        $owner = & $dockerCmd 'run' '--rm' '-v' "${volName}:/var/opt/mssql/data" 'alpine' 'sh' '-c' "if [ -f /var/opt/mssql/data/master.mdf ]; then ls -ln /var/opt/mssql/data/master.mdf | awk '{print $3}'; else echo 'MISSING'; fi" 2>$null
+        $owner = & $dockerCmd 'run' '--rm' '-v' "${volName}:/var/opt/mssql/data" 'alpine' 'sh' '-c' "if [ -f /var/opt/mssql/data/master.mdf ]; then ls -ln /var/opt/mssql/data/master.mdf | awk '{print \$3}'; else echo 'MISSING'; fi" 2>$null
         $owner = ($owner -join "").Trim()
         if ($owner -and $owner -ne 'MISSING' -and $owner -ne '10001') {
             Write-Output "master.mdf owner is '$owner' (expected 10001). Attempting to chown volume to 10001:10001..."
@@ -75,7 +75,7 @@ if ($hostSqlcmdObj) { $hostSqlcmd = $hostSqlcmdObj.Source }
 while ($i -lt $max) {
     if ($hostSqlcmd) {
         try {
-            & $hostSqlcmd -S "localhost,1433" -U SA -P $saPassword -Q "SELECT 1" > $null 2>&1
+            & $hostSqlcmd -S "localhost,1433" -U SA -P \$saPassword -Q "SELECT 1" > $null 2>&1
             Write-Output "SQL Server is ready (host sqlcmd)."
             break
         } catch {
@@ -85,7 +85,7 @@ while ($i -lt $max) {
         }
     } else {
         try {
-            & $dockerCmd 'exec' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' $saPassword '-Q' 'SELECT 1' > $null 2>&1
+            & $dockerCmd 'exec' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' \$saPassword '-Q' 'SELECT 1' > $null 2>&1
             Write-Output "SQL Server is ready (container sqlcmd)."
             break
         } catch {
@@ -125,9 +125,9 @@ try { $initPathHost = (Resolve-Path $initPathHost -ErrorAction Stop).Path } catc
 # Helper to run a SQL command and return trimmed stdout
 function Invoke-SqlQuery([string]$query) {
     if ($hostSqlcmd) {
-        $out = & $hostSqlcmd '-S' 'localhost,1433' '-U' 'SA' '-P' $saPassword '-Q' $query 2>&1
+        $out = & $hostSqlcmd '-S' 'localhost,1433' '-U' 'SA' '-P' \$saPassword '-Q' $query 2>&1
     } else {
-        $out = & $dockerCmd 'exec' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' $saPassword '-Q' $query 2>&1
+        $out = & $dockerCmd 'exec' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' \$saPassword '-Q' $query 2>&1
     }
     return ($out -join "`n").Trim()
 }
@@ -149,11 +149,11 @@ if ($checkOut -match '1') {
             Write-Output "Falling back to running init.sql script."
             if ($hostSqlcmd) {
                 Write-Output "Using host sqlcmd to run init.sql: $initPathHost"
-                & $hostSqlcmd '-S' 'localhost,1433' '-U' 'SA' '-P' $saPassword '-i' $initPathHost
+                & $hostSqlcmd '-S' 'localhost,1433' '-U' 'SA' '-P' \$saPassword '-i' $initPathHost
             } else {
                 Write-Output "Copying init.sql into container and executing via container sqlcmd"
                 & $dockerCmd 'cp' $initPathHost ("${container}:/init.sql")
-                & $dockerCmd 'exec' '-i' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' $saPassword '-i' '/init.sql'
+                & $dockerCmd 'exec' '-i' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' \$saPassword '-i' '/init.sql'
             }
         } else {
             Write-Output "Attach succeeded or produced no error messages: $attachOut"
@@ -162,23 +162,21 @@ if ($checkOut -match '1') {
         # No mdf to attach; run init.sql as usual
         if ($hostSqlcmd) {
             Write-Output "Using host sqlcmd to run init.sql: $initPathHost"
-            & $hostSqlcmd '-S' 'localhost,1433' '-U' 'SA' '-P' $saPassword '-i' $initPathHost
+            & $hostSqlcmd '-S' 'localhost,1433' '-U' 'SA' '-P' \$saPassword '-i' $initPathHost
         } else {
             Write-Output "Copying init.sql into container and executing via container sqlcmd"
             & $dockerCmd 'cp' $initPathHost ("${container}:/init.sql")
-            & $dockerCmd 'exec' '-i' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' $saPassword '-i' '/init.sql'
+            & $dockerCmd 'exec' '-i' $container '/opt/mssql-tools/bin/sqlcmd' '-S' 'localhost' '-U' 'SA' '-P' \$saPassword '-i' '/init.sql'
         }
     }
 }
 
 Write-Output "Database initialization complete."
-$defaultSqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
+$defaultSqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=\$saPassword;Encrypt=False;TrustServerCertificate=True;"
 $env:SQL_CONN = $defaultSqlConn
 Write-Output "Set SQL_CONN for this session to a Docker-safe local connection string."
 Write-Output "You can now run the WinForms app. If you want to reuse it in another shell, set the environment variable SQL_CONN with a connection string, for example:"
 Write-Output "  SQL_CONN='Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=<your_sa_password>;Encrypt=False;TrustServerCertificate=True;'"
-
-
 
 
 
