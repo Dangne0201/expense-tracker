@@ -43,7 +43,7 @@ $dbReady = $false
 $maxAttempts = 60
 for ($i = 0; $i -lt $maxAttempts; $i++) {
     try {
-        $connStr = "Server=localhost,1433;User Id=sa;Password=$saPassword;Connection Timeout=2"
+        $connStr = "Server=localhost,1433;User Id=sa;Password=`$saPassword;Connection Timeout=2"
         $cn = New-Object System.Data.SqlClient.SqlConnection $connStr
         $cn.Open()
         $cn.Close()
@@ -58,7 +58,6 @@ if (-not $dbReady) {
     exit 1
 }
 Write-Log "SQL Server is accepting connections. (TCP)"
-
 # Create SQL_CONN and GUI batch wrapper using the provided SA password so new machines can launch the GUI successfully
 $fixScript = Join-Path $PSScriptRoot 'fix-sqlconn.ps1'
 if (Test-Path $fixScript) {
@@ -68,10 +67,13 @@ if (Test-Path $fixScript) {
 }
 
 # Set SQL_CONN so launched app inherits correct connection string
-$env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
-# Also set local variable
-$sqlConn = $env:SQL_CONN
-Write-Log "Set SQL_CONN for this process."
+$env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=`$saPassword;Encrypt=False;TrustServerCertificate=True;"
+# Persist for the current user so GUI apps launched after this script can read it as well
+# Set SQL_CONN so launched app inherits correct connection string (process-level only)
+$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=`$saPassword;Encrypt=False;TrustServerCertificate=True;"
+$env:SQL_CONN = $sqlConn
+Write-Log "Set SQL_CONN for this process. Will create a batch wrapper to launch the GUI with the same value (password not echoed in logs)"
+Write-Log "Set SQL_CONN for this process; a batch wrapper will be created to launch the GUI with the same value (password not echoed)"
 
 # Optionally build and run the WinForms app (will inherit SQL_CONN)
 # Resolve project path robustly depending on where this script is located (repo root vs scripts/setup)
@@ -98,7 +100,19 @@ if (-not $proj) {
     if (Test-Path $exe) {
         if ($RunAppBool) {
             Write-Log "Starting application exe: $exe"
-            Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent)
+            # Ensure sqlConn includes provided password
+            $sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=`$saPassword;Encrypt=False;TrustServerCertificate=True;"
+            $env:SQL_CONN = $sqlConn
+
+            $bat = Join-Path $PSScriptRoot "start-expense-app.bat"
+            # Create batch wrapper that sets SQL_CONN including TrustServerCertificate to avoid cert trust errors
+            $batContent = @"
+@echo off
+set "SQL_CONN=Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=`$saPassword;Encrypt=False;TrustServerCertificate=True;"
+start "" "$exe"
+"@
+            Set-Content -Path $bat -Value $batContent -Encoding ASCII
+            Start-Process -FilePath $bat -WorkingDirectory (Split-Path $exe -Parent)
             Write-Log "Application started."
         } else {
             Write-Log "RunApp not specified; skipping launching the application."
@@ -111,4 +125,9 @@ if (-not $proj) {
 }
 
 Write-Log "Docker-based setup complete."
+
+
+
+
+
 
