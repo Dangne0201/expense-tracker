@@ -28,6 +28,15 @@ if (-not (Test-Path $startScript)) { Write-Log "Cannot find $startScript"; exit 
 & $startScript -saPassword $saPassword
 if (-not $?) { Write-Log "start-dev-fixed.ps1 failed; aborting"; exit 1 }
 
+# Ensure docker volume ownership so mssql user can initialize DB (workaround for Windows/WSL permission issues)
+Write-Log "Ensuring docker volume ownership for mssql user (expense_tracker_mssqldata)..."
+try {
+    & docker run --rm -v expense_tracker_mssqldata:/mnt busybox chown -R 10001:0 /mnt
+    Write-Log "Adjusted volume ownership (if volume existed)."
+} catch {
+    Write-Log "Warning: could not adjust volume ownership: $_"
+}
+
 # Wait for SQL Server to accept TCP connections on localhost:1433 (max ~2 minutes)
 Write-Log "Waiting for SQL Server TCP port to become available..."
 $dbReady = $false
