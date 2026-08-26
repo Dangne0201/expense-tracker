@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$saPassword = "Your_password123"
 )
 
@@ -176,5 +176,4 @@ $defaultSqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=
 $env:SQL_CONN = $defaultSqlConn
 Write-Output "Set SQL_CONN for this session to a Docker-safe local connection string."
 Write-Output "You can now run the WinForms app. If you want to reuse it in another shell, set the environment variable SQL_CONN with a connection string, for example:"
-Write-Output "  SQL_CONN='Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=<your_sa_password>;Encrypt=False;TrustServerCertificate=True;'"
-
+Write-Output "  SQL_CONN='Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=Your_password123;Encrypt=False;TrustServerCertificate=True;'"
