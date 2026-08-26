@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$saPassword = "Your_password123",
     [Parameter()] [object]$RunApp = $true
 )
@@ -54,11 +54,70 @@ Write-Log "SQL Server is accepting connections. (TCP)"
 $env:SQL_CONN = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
 # Persist for the current user so GUI apps launched after this script can read it as well
 # Set SQL_CONN so launched app inherits correct connection string (process-level only)
-$sqlConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
+$sqlConn = $env:SQL_CONN
 $env:SQL_CONN = $sqlConn
-Write-Log "Set SQL_CONN for this process. Will create a batch wrapper to launch the GUI with the same value (password not echoed in logs)"
-Write-Log "Set SQL_CONN for this process; a batch wrapper will be created to launch the GUI with the same value (password not echoed)"
+Write-Log "Set SQL_CONN for this process (masked in logs)."
 
+# Test whether current SQL_CONN can connect to ExpenseDb; if not, attempt fallback using provided SA password
+$canConnect = $false
+try {
+    $testCn = New-Object System.Data.SqlClient.SqlConnection $sqlConn
+    $testCn.Open()
+    $cmd = $testCn.CreateCommand()
+    $cmd.CommandText = "SET NOCOUNT ON; IF DB_ID('ExpenseDb') IS NOT NULL SELECT 1 ELSE SELECT 0"
+    $res = $cmd.ExecuteScalar()
+    $testCn.Close()
+    if ($res -eq 1) { $canConnect = $true }
+} catch {
+    Write-Log "Validation of masked SQL_CONN failed: $_"
+}
+
+if (-not $canConnect) {
+    Write-Log "Masked SQL_CONN cannot connect. Attempting fallback with provided SA password."
+    # Build real connection string with password
+    $realConn = "Server=localhost,1433;Database=ExpenseDb;User Id=sa;Password=$saPassword;Encrypt=False;TrustServerCertificate=True;"
+    # Try to create ExpenseDb if missing
+    $repoRootCandidates2 = @($PSScriptRoot, (Split-Path -Parent $PSScriptRoot), (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
+    $repoRoot2 = $repoRootCandidates2 | Where-Object { $_ -and (Test-Path (Join-Path $_ 'data\init.sql')) } | Select-Object -First 1
+    if ($repoRoot2) {
+        $initPathHost = Join-Path $repoRoot2 'data\init.sql'
+        $hostSqlcmdObj = Get-Command sqlcmd -ErrorAction SilentlyContinue
+        if ($hostSqlcmdObj) {
+            try { & $hostSqlcmdObj.Source '-S' 'localhost,1433' '-U' 'SA' '-P' $saPassword '-i' $initPathHost; Write-Log "Ran init.sql via host sqlcmd." } catch { Write-Log "Host sqlcmd failed: $_" }
+        } else {
+            try { & docker cp $initPathHost ("expense-mssql:/init.sql"); & docker exec -i expense-mssql /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P $saPassword -i /init.sql; Write-Log "Ran init.sql inside container." } catch { Write-Log "Container sqlcmd failed: $_" }
+        }
+    } else {
+        Write-Log "init.sql not found; cannot auto-create database."
+    }
+
+    # Determine exeDir to write local sqlconn.txt
+    $repoRootCandidatesExe = @($PSScriptRoot, (Split-Path -Parent $PSScriptRoot), (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
+    $repoRootExe = $repoRootCandidatesExe | Where-Object { $_ -and (Test-Path (Join-Path $_ 'src\\ExpenseTracker.WinForms\\ExpenseTracker.WinForms.csproj')) } | Select-Object -First 1
+    $exeDir = Join-Path $repoRootExe 'src\\ExpenseTracker.WinForms\\bin\\Debug\\net10.0-windows'
+    $exePath = Join-Path $exeDir 'ExpenseTracker.WinForms.exe'
+    try {
+        $bat = Join-Path $PSScriptRoot "start-expense-app.bat"
+        $batContent = @"
+@echo off
+set "SQL_CONN=$realConn"
+start "" "$exePath"
+"@
+        Set-Content -Path $bat -Value $batContent -Encoding ASCII
+        Write-Log "Generated batch wrapper at $bat (contains real connection string)."
+    } catch {
+        Write-Log "Failed to create batch wrapper: $_"
+    }
+    try {
+        if (Test-Path $exeDir) { $localConnFile = Join-Path $exeDir 'sqlconn.txt'; Set-Content -Path $localConnFile -Value $realConn -Encoding ASCII; Write-Log "Wrote local sqlconn.txt at $localConnFile" } else { Write-Log "Exe directory not found; skipping creation of local sqlconn.txt" }
+    } catch { Write-Log "Failed to write local sqlconn.txt: $_" }
+
+    # Update env for this process
+    $env:SQL_CONN = $realConn
+    $sqlConn = $realConn
+    Write-Log "Fallback SQL_CONN applied for this process."
+} else {
+    Write-Log "Existing masked SQL_CONN appears usable; continuing with existing behavior."
 # Optionally build and run the WinForms app (will inherit SQL_CONN)
 # Resolve project path robustly depending on where this script is located (repo root vs scripts/setup)
 $repoRootCandidates = @(
@@ -106,6 +165,7 @@ start "" "$exe"
     }
 } else {
     Write-Log "dotnet CLI not available; skipping build/run. You can start the app manually; ensure SQL_CONN is set in environment."
+}
 }
 
 Write-Log "Docker-based setup complete."
