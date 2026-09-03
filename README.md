@@ -34,6 +34,15 @@ Expense Tracker
   docker compose up -d
 - Mở app bằng VS, dotnet run, hoặc chạy lại setup-all.ps1 nếu cần
 
+## Try a release without building
+- Mở tab **Releases** trên GitHub và tải `expense-tracker-v*-win-x64.zip`.
+- Giải nén, cài và mở Docker Desktop, sau đó double-click `Run-ExpenseTracker.bat`.
+- Gói đã chứa app self-contained và script khởi tạo database; không cần cài .NET SDK.
+- Docker Desktop vẫn là yêu cầu vì SQL Server chạy trong container.
+
+Để tạo lại gói release từ source:
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.2.0"`
+
 ## Troubleshooting
 - Docker không chạy: mở Docker Desktop
 - Port 1433 đang bị chiếm: kiểm tra SQL Server khác trên máy hoặc đổi port trong docker-compose.yml
@@ -58,5 +67,4 @@ Expense Tracker
 - Không commit .env thật
 - Không commit build artifacts
 - DB được tạo lại từ init.sql, nên repo nhỏ gọn và dễ share trên Git
-
 
