@@ -1,7 +1,10 @@
 using System;
 using System.IO;
+using System.Drawing;
+using System.Drawing.Imaging;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
@@ -34,6 +37,7 @@ namespace ExpenseTracker.UiTests
                     var main = app.GetMainWindow(automation, TimeSpan.FromSeconds(20));
                     Assert.IsNotNull(main, "Main window should appear after app launch");
                     Assert.That(main!.Title, Is.EqualTo("Expense Tracker (WinForms)"));
+                    CaptureDemoScreenshotIfRequested(main);
                 }
                 finally
                 {
@@ -68,18 +72,19 @@ namespace ExpenseTracker.UiTests
                         Assert.That(main, Is.Not.Null, "Main window should appear before CRUD automation");
 
                         var categoryInput = Find(main!, "txtNewCategory").AsTextBox();
-                        categoryInput.Enter(categoryName);
+                        categoryInput.Text = categoryName;
                         Find(main!, "btnAddCategory").AsButton().Invoke();
 
                         var categories = Find(main!, "lstCategories").AsListBox();
                         categories.Select(categoryName);
-                        Find(main!, "txtAmount").AsTextBox().Enter("12.50");
-                        Find(main!, "txtNote").AsTextBox().Enter(note);
+                        Find(main!, "txtAmount").AsTextBox().Text = "12.50";
+                        Find(main!, "txtNote").AsTextBox().Text = note;
                         Find(main!, "btnAddExpense").AsButton().Invoke();
 
                         var grid = Find(main!, "dgvExpenses").AsDataGridView();
-                        var addedRow = FindRow(grid, note);
-                        Assert.That(addedRow, Is.Not.Null, "The added expense should appear in the grid");
+                        var addedRow = WaitForRow(grid, note, shouldExist: true);
+                        Assert.That(addedRow, Is.Not.Null, "The added expense should appear in the grid. " +
+                            $"Amount input={Find(main!, "txtAmount").AsTextBox().Text}; note input={Find(main!, "txtNote").AsTextBox().Text}");
                         Assert.That(grid.Rows.Count, Is.EqualTo(2), "The grid should show one expense and one total row");
 
                         DoubleClickCell(FindNoteCell(addedRow!, note));
@@ -102,11 +107,6 @@ namespace ExpenseTracker.UiTests
                         Assert.That(FindRow(grid, note), Is.Null, "The old note should no longer be present after edit");
                         Assert.That(grid.Rows.Count, Is.EqualTo(2), "The displayed total should include the edited expense only once");
 
-                        FindNoteCell(updatedRow!, editedNote).Click();
-                        Find(main!, "btnDeleteExpense").AsButton().Invoke();
-                        Assert.That(FindRow(grid, editedNote), Is.Null, "Deleting should remove the expense from the grid");
-                        Assert.That(grid.Rows.Count, Is.EqualTo(1), "Deleting the only expense should leave the zero-total row");
-                        Assert.That(FindRow(grid, "TOTAL"), Is.Not.Null, "The total row should remain visible when there are no expenses");
                     }
                     finally
                     {
@@ -123,12 +123,36 @@ namespace ExpenseTracker.UiTests
                         Assert.That(main, Is.Not.Null, "The app should restart successfully");
                         Find(main!, "lstCategories").AsListBox().Select(categoryName);
                         var restartedGrid = Find(main!, "dgvExpenses").AsDataGridView();
-                        Assert.That(FindRow(restartedGrid, "TOTAL"), Is.Not.Null, "The zero-total row should be shown after restarting an empty database");
-                        Assert.That(FindRow(restartedGrid, editedNote), Is.Null, "Deleted data should remain deleted after restart");
+                            var persistedRow = FindRow(restartedGrid, editedNote);
+                            Assert.That(persistedRow, Is.Not.Null, "The saved edit and category should persist after restart");
+                            Assert.That(restartedGrid.Rows.Count, Is.EqualTo(2), "The persisted expense should still contribute to the total row");
+                            FindNoteCell(persistedRow!, editedNote).Click();
+                            Find(main!, "btnDeleteExpense").AsButton().Invoke();
+                            Assert.That(FindRow(restartedGrid, editedNote), Is.Null, "Deleting after restart should remove the expense");
+                            Assert.That(restartedGrid.Rows.Count, Is.EqualTo(1), "Deleting the only expense should leave the zero-total row");
+                            Assert.That(FindRow(restartedGrid, "TOTAL"), Is.Not.Null, "The total row should remain visible when there are no expenses");
+                        }
+                        finally
+                        {
+                            restartedApp.Close(killIfCloseFails: true);
+                        }
+                    }
+
+                using (var finalApp = FlaUIApplication.Launch(exe))
+                using (var automation = new UIA3Automation())
+                {
+                    try
+                    {
+                        var main = finalApp.GetMainWindow(automation, TimeSpan.FromSeconds(20));
+                        Assert.That(main, Is.Not.Null, "The app should launch after the deletion");
+                        Find(main!, "lstCategories").AsListBox().Select(categoryName);
+                        var finalGrid = Find(main!, "dgvExpenses").AsDataGridView();
+                        Assert.That(FindRow(finalGrid, editedNote), Is.Null, "The deletion should persist after restart");
+                        Assert.That(FindRow(finalGrid, "TOTAL"), Is.Not.Null, "The zero-total row should remain visible after restart");
                     }
                     finally
                     {
-                        restartedApp.Close(killIfCloseFails: true);
+                        finalApp.Close(killIfCloseFails: true);
                     }
                 }
             }
@@ -167,7 +191,87 @@ namespace ExpenseTracker.UiTests
                 return null;
             }
 
-        private static FlaUI.Core.AutomationElements.DataGridViewCell FindNoteCell(
+            private static FlaUI.Core.AutomationElements.DataGridViewRow? WaitForRow(
+                FlaUI.Core.AutomationElements.DataGridView grid,
+                string text,
+                bool shouldExist)
+            {
+                var timeout = System.Diagnostics.Stopwatch.StartNew();
+                FlaUI.Core.AutomationElements.DataGridViewRow? row;
+                do
+                {
+                    row = FindRow(grid, text);
+                    if ((row != null) == shouldExist)
+                    {
+                        return row;
+                    }
+
+                    System.Threading.Thread.Sleep(100);
+                }
+                while (timeout.Elapsed < TimeSpan.FromSeconds(5));
+
+                return row;
+            }
+
+            private static void CaptureDemoScreenshotIfRequested(AutomationElement main)
+            {
+                var screenshotPath = Environment.GetEnvironmentVariable("EXPENSE_TRACKER_SCREENSHOT_PATH");
+                if (string.IsNullOrWhiteSpace(screenshotPath))
+                {
+                    return;
+                }
+
+                var demoExpenses = new[]
+                {
+                    (Category: "Food", Amount: "42.75", Note: "Weekly groceries"),
+                    (Category: "Transport", Amount: "18.50", Note: "Monthly bus pass"),
+                    (Category: "Bills", Amount: "64.20", Note: "Electricity bill")
+                };
+
+                var grid = Find(main, "dgvExpenses").AsDataGridView();
+                foreach (var expense in demoExpenses)
+                {
+                    Find(main, "lstCategories").AsListBox().Select(expense.Category);
+                    Find(main, "txtAmount").AsTextBox().Text = expense.Amount;
+                    Find(main, "txtNote").AsTextBox().Text = expense.Note;
+                    Find(main, "btnAddExpense").AsButton().Invoke();
+                    Assert.That(WaitForRow(grid, expense.Note, shouldExist: true), Is.Not.Null,
+                        $"The demo expense '{expense.Note}' should appear before screenshot capture");
+                }
+
+                Assert.That(grid.Rows.Count, Is.EqualTo(4), "The demo screenshot should show three expenses and the total row");
+                var fullScreenshotPath = Path.GetFullPath(screenshotPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(fullScreenshotPath)!);
+                main.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+                main.Focus();
+                Mouse.MoveTo(new System.Drawing.Point(5, 5));
+                System.Threading.Thread.Sleep(500);
+                var windowBounds = main.BoundingRectangle;
+                var gridBounds = Find(main, "dgvExpenses").BoundingRectangle;
+                var expenseButtonBounds = Find(main, "btnAddExpense").BoundingRectangle;
+                Assert.That(expenseButtonBounds.Top, Is.GreaterThan(gridBounds.Bottom),
+                    $"The expense actions must be below the grid. Window={windowBounds}; grid={gridBounds}; button={expenseButtonBounds}");
+                foreach (var automationId in new[] { "btnAddCategory", "btnAddExpense", "txtNote" })
+                {
+                    var controlBounds = Find(main, automationId).BoundingRectangle;
+                    Assert.That(controlBounds.Width, Is.GreaterThan(0),
+                        $"Control '{automationId}' must have a visible layout rectangle. Window={windowBounds}; control={controlBounds}");
+                    Assert.That(controlBounds.Top, Is.GreaterThan(windowBounds.Top + windowBounds.Height * 0.75),
+                        $"Control '{automationId}' must be in the visible footer area. Window={windowBounds}; control={controlBounds}");
+                    Assert.That(controlBounds.Bottom, Is.LessThanOrEqualTo(windowBounds.Bottom),
+                        $"Control '{automationId}' must remain visible within the window. Window={windowBounds}; control={controlBounds}");
+                }
+
+                var screenBounds = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+                using (var bitmap = new Bitmap(screenBounds.Width, screenBounds.Height))
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.CopyFromScreen(screenBounds.Location, Point.Empty, screenBounds.Size);
+                    bitmap.Save(fullScreenshotPath, ImageFormat.Png);
+                }
+            }
+
+            private static FlaUI.Core.AutomationElements.DataGridViewCell FindNoteCell(
             FlaUI.Core.AutomationElements.DataGridViewRow row,
             string note)
             {

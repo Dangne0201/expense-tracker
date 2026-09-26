@@ -59,9 +59,9 @@ namespace ExpenseTracker.WinForms
             AutoScaleMode = AutoScaleMode.Dpi;
             Font = SystemFonts.MessageBoxFont;
             var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1300, 640);
-            Width = Math.Max(800, Math.Min(1300, workingArea.Width - 20));
-            Height = Math.Max(460, Math.Min(640, workingArea.Height - 20));
-            MinimumSize = new Size(Math.Min(900, Width), Math.Min(480, Height));
+            Width = Math.Max(640, Math.Min(980, workingArea.Width - 20));
+            Height = Math.Max(460, Math.Min(560, workingArea.Height - 20));
+            MinimumSize = new Size(Math.Min(640, Width), Math.Min(460, Height));
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             KeyPreview = true;
@@ -75,10 +75,11 @@ namespace ExpenseTracker.WinForms
             };
 
             // Root layout: left panel for categories, right panel for expenses.
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-            var categoryPanelWidth = Math.Min(560, (int)(ClientSize.Width * 0.43));
+            var root = new TableLayoutPanel { ColumnCount = 2, RowCount = 1 };
+            var categoryPanelWidth = Math.Min(380, Math.Max(240, (int)(ClientSize.Width * 0.34)));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, categoryPanelWidth));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
             // Left panel: categories list + buttons.
@@ -104,6 +105,7 @@ namespace ExpenseTracker.WinForms
                 AllowUserToResizeColumns = true,
                 AllowUserToResizeRows = false
             };
+            dgvExpenses.SizeChanged += (s, e) => AdjustExpenseColumns();
             dgvExpenses.CellFormatting += (s, e) =>
             {
                 if (e.RowIndex >= 0 && e.ColumnIndex >= 0 &&
@@ -118,15 +120,18 @@ namespace ExpenseTracker.WinForms
             };
 
             // Shared footer row keeps category controls aligned with the expense input area.
-            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+            const int footerHeight = 120;
+            var footer = new TableLayoutPanel { ColumnCount = 2, RowCount = 1 };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, categoryPanelWidth));
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             // Category controls on the left footer.
             var footerLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
-            btnLoadCategories = new Button { Name = "btnLoadCategories", Text = "Load", AutoSize = false, Width = 90, Height = 44, Padding = new Padding(6), Margin = new Padding(3), TextAlign = ContentAlignment.MiddleCenter };
-            txtNewCategory = new TextBox { Name = "txtNewCategory", Width = Math.Max(140, categoryPanelWidth - 240), Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 3, 6) };
-            btnAddCategory = new Button { Name = "btnAddCategory", Text = "Add", AutoSize = false, Width = 90, Height = 44, Padding = new Padding(6), Margin = new Padding(3), TextAlign = ContentAlignment.MiddleCenter };
+            var categoryButtonWidth = categoryPanelWidth < 280 ? 60 : 75;
+            btnLoadCategories = new Button { Name = "btnLoadCategories", Text = "Load", AutoSize = false, Width = categoryButtonWidth, Height = 44, Padding = new Padding(6), Margin = new Padding(2), TextAlign = ContentAlignment.MiddleCenter };
+            txtNewCategory = new TextBox { Name = "txtNewCategory", Width = Math.Max(80, categoryPanelWidth - (categoryButtonWidth * 2) - 40), Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(2, 6, 2, 6) };
+            btnAddCategory = new Button { Name = "btnAddCategory", Text = "Add", AutoSize = false, Width = categoryButtonWidth, Height = 44, Padding = new Padding(6), Margin = new Padding(2), TextAlign = ContentAlignment.MiddleCenter };
 
             footerLeft.Controls.Add(btnLoadCategories);
             footerLeft.Controls.Add(txtNewCategory);
@@ -175,7 +180,7 @@ namespace ExpenseTracker.WinForms
             footerRightTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             footerRightTable.ColumnStyles.Clear();
             footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            var actionColumnWidth = Math.Min(220, Math.Max(150, (ClientSize.Width - categoryPanelWidth - 20) / 3));
+            var actionColumnWidth = Math.Min(180, Math.Max(120, (ClientSize.Width - categoryPanelWidth - 32) / 3));
             footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, actionColumnWidth));
             footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, actionColumnWidth));
             footerRightTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, actionColumnWidth));
@@ -207,11 +212,6 @@ namespace ExpenseTracker.WinForms
 
             footerRight.Controls.Add(footerRightTable);
 
-            // Final form layout: main working area + footer area.
-            root.RowCount = 2;
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
-
             pnlLeft.Controls.Add(lstCategories);
             pnlLeft.Controls.Add(lblCat);
 
@@ -220,8 +220,19 @@ namespace ExpenseTracker.WinForms
 
             root.Controls.Add(pnlLeft, 0, 0);
             root.Controls.Add(pnlRight, 1, 0);
-            root.Controls.Add(footerLeft, 0, 1);
-            root.Controls.Add(footerRight, 1, 1);
+            footer.Controls.Add(footerLeft, 0, 0);
+            footer.Controls.Add(footerRight, 1, 0);
+            Controls.Add(footer);
+
+            void LayoutMainContent()
+            {
+                var contentHeight = Math.Max(0, ClientSize.Height - footerHeight);
+                root.Bounds = new Rectangle(0, 0, ClientSize.Width, contentHeight);
+                footer.Bounds = new Rectangle(0, contentHeight, ClientSize.Width, ClientSize.Height - contentHeight);
+            }
+
+            Resize += (s, e) => LayoutMainContent();
+            LayoutMainContent();
         }
 
         /// <summary>
@@ -501,16 +512,32 @@ namespace ExpenseTracker.WinForms
                 }
 
                 if (dgvExpenses.Columns.Contains("Id")) dgvExpenses.Columns["Id"].Visible = false;
-                if (dgvExpenses.Columns.Contains("Amount")) dgvExpenses.Columns["Amount"].Width = 110;
-                if (dgvExpenses.Columns.Contains("Date")) dgvExpenses.Columns["Date"].Width = 150;
-                if (dgvExpenses.Columns.Contains("Note")) dgvExpenses.Columns["Note"].Width = 150;
-                if (dgvExpenses.Columns.Contains("CategoryName")) dgvExpenses.Columns["CategoryName"].Width = 150;
                 if (dgvExpenses.Columns.Contains("CategoryId")) dgvExpenses.Columns["CategoryId"].Visible = false;
+                AdjustExpenseColumns();
             }
             catch (Exception ex)
             {
                 ShowDatabaseError("Loading expenses", ex);
             }
+        }
+
+        private void AdjustExpenseColumns()
+        {
+            if (dgvExpenses.Columns.Count == 0)
+            {
+                return;
+            }
+
+            var availableWidth = Math.Max(0, dgvExpenses.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
+            var amountWidth = Math.Max(70, (int)(availableWidth * 0.18));
+            var dateWidth = Math.Max(100, (int)(availableWidth * 0.25));
+            var noteWidth = Math.Max(100, (int)(availableWidth * 0.32));
+            var categoryWidth = Math.Max(90, availableWidth - amountWidth - dateWidth - noteWidth);
+
+            if (dgvExpenses.Columns.Contains("Amount")) dgvExpenses.Columns["Amount"].Width = amountWidth;
+            if (dgvExpenses.Columns.Contains("Date")) dgvExpenses.Columns["Date"].Width = dateWidth;
+            if (dgvExpenses.Columns.Contains("Note")) dgvExpenses.Columns["Note"].Width = noteWidth;
+            if (dgvExpenses.Columns.Contains("CategoryName")) dgvExpenses.Columns["CategoryName"].Width = categoryWidth;
         }
 
         private void AddExpense()

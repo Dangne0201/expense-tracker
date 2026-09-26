@@ -22,7 +22,7 @@ Instruction là quy tắc chung cho agent. Nó nói cho agent biết:
 - nên validate bằng lệnh nào
 - không nên commit file build artifact hoặc DB local
 
-Trong repo này, phần quan trọng nhất là [.github/copilot-instructions.md](D:/NTGiang/AITrainning/.github/copilot-instructions.md). Đây là nơi ghi quy tắc mà AI agent cần tuân theo.
+Trong repo này, phần quan trọng nhất là [.github/copilot-instructions.md](../.github/copilot-instructions.md). Đây là nơi ghi quy tắc mà AI agent cần tuân theo.
 
 ### Skill
 Skill là một “chuyên môn riêng” mà agent có thể dùng khi cần.
@@ -65,12 +65,12 @@ Trong repo, MCP demo chỉ là sân chơi thử nghiệm, không phải phần c
 Mục tiêu là repo nên gọn, rõ, dễ đọc và dễ cho AI agent làm việc.
 
 Một số phần quan trọng:
-- [docs](D:/NTGiang/AITrainning/docs): tài liệu, hướng dẫn, review, planning
-- [scripts/setup](D:/NTGiang/AITrainning/scripts/setup): scripts khởi tạo môi trường và setup DB
-- [scripts/tests](D:/NTGiang/AITrainning/scripts/tests): script chạy unit/integration/UI/smoke tests
-- [src](D:/NTGiang/AITrainning/src): source code app và test
-- [data](D:/NTGiang/AITrainning/data): SQL schema/data init
-- [artifacts](D:/NTGiang/AITrainning/artifacts): output build/package nếu có
+- [docs](.): tài liệu, hướng dẫn, review, planning
+- [scripts/setup](../scripts/setup): scripts khởi tạo môi trường và setup DB
+- [scripts/tests](../scripts/tests): script chạy unit/integration/UI/smoke tests
+- [src](../src): source code app và test
+- [data](../data): SQL schema/data init
+- [artifacts](../artifacts): output build/package nếu có
 
 Điều quan trọng là không để “file rời rạc lung tung”, không để mỗi task tự tạo file ngẫu nhiên ở root. Nếu có cùng loại công việc thì gom chung, nếu chưa có folder phù hợp thì tạo folder, còn chưa tạo thì không bắt buộc tạo file mới vô nghĩa.
 
@@ -94,9 +94,9 @@ Các file như project plan, testing guide, code review đều có vai trò riê
 Project này dùng Docker để chạy SQL Server local, vì vậy database không phụ thuộc vào máy dev và dễ khởi tạo lại.
 
 Các file trọng tâm:
-- [docker-compose.yml](D:/NTGiang/AITrainning/docker-compose.yml)
-- [data/init.sql](D:/NTGiang/AITrainning/data/init.sql)
-- [scripts/setup/setup-all.ps1](D:/NTGiang/AITrainning/scripts/setup/setup-all.ps1)
+- [docker-compose.yml](../docker-compose.yml)
+- [data/init.sql](../data/init.sql)
+- [scripts/setup/setup-all.ps1](../scripts/setup/setup-all.ps1)
 
 Cách hoạt động thực tế:
 - Docker container chạy SQL Server
@@ -109,7 +109,7 @@ Nếu app chạy local mà Docker đang chạy, nó ưu tiên dùng SQL Server t
 ## 6. Học về C# WinForms app
 
 App chính nằm ở:
-- [src/ExpenseTracker.WinForms](D:/NTGiang/AITrainning/src/ExpenseTracker.WinForms)
+- [src/ExpenseTracker.WinForms](../src/ExpenseTracker.WinForms)
 
 MainForm làm những việc chính:
 - chọn DB phù hợp
@@ -135,10 +135,10 @@ Project có 3 loại test chính:
 - UI test: test app GUI bằng automation
 
 Các script tương ứng nằm trong:
-- [scripts/tests/run-unit-tests.ps1](D:/NTGiang/AITrainning/scripts/tests/run-unit-tests.ps1)
-- [scripts/tests/run-integration-tests.ps1](D:/NTGiang/AITrainning/scripts/tests/run-integration-tests.ps1)
-- [scripts/tests/run-ui-tests.ps1](D:/NTGiang/AITrainning/scripts/tests/run-ui-tests.ps1)
-- [scripts/tests/smoke-test-remote.ps1](D:/NTGiang/AITrainning/scripts/tests/smoke-test-remote.ps1)
+- [scripts/tests/run-unit-tests.ps1](../scripts/tests/run-unit-tests.ps1)
+- [scripts/tests/run-integration-tests.ps1](../scripts/tests/run-integration-tests.ps1)
+- [scripts/tests/run-ui-tests.ps1](../scripts/tests/run-ui-tests.ps1)
+- [scripts/tests/smoke-test-remote.ps1](../scripts/tests/smoke-test-remote.ps1)
 
 
 ## 8. Vấn đề SSL / cert trong local Docker

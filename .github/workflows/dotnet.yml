@@ -26,4 +26,4 @@ jobs:
         run: dotnet build ExpenseTracker.sln --configuration Release --no-restore
 
       - name: Run database-independent tests
-        run: dotnet test ExpenseTracker.sln --configuration Release --no-build --filter "Category!=Integration" --verbosity normal
+        run: dotnet test src/ExpenseTracker.Tests/ExpenseTracker.Tests.csproj --configuration Release --no-build --filter "Category!=Integration" --verbosity normal

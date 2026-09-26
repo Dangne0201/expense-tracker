@@ -35,8 +35,8 @@ try {
     $bundleCompose = Get-Content (Join-Path $repoRoot "docker-compose.yml") -Raw
     $bundleCompose = $bundleCompose -replace '(?m)^\s*container_name:\s*expense-mssql\s*\r?\n', ''
     $bundleCompose = $bundleCompose.Replace(
-        '"127.0.0.1:1433:1433"',
-        '"127.0.0.1:${EXPENSE_TRACKER_SQL_PORT:-1433}:1433"')
+        '127.0.0.1:1433:1433',
+        '127.0.0.1:${EXPENSE_TRACKER_SQL_PORT:-1433}:1433')
     Set-Content -Path (Join-Path $stagingRoot "docker-compose.yml") -Value $bundleCompose -Encoding ASCII
     New-Item (Join-Path $stagingRoot "data") -ItemType Directory -Force | Out-Null
     Copy-Item (Join-Path $repoRoot "data\init.sql") (Join-Path $stagingRoot "data\init.sql")

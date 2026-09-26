@@ -9,6 +9,8 @@
 
 The app helps a single local user track expenses by category, amount, date, and note. It supports adding categories and creating, viewing, editing, and deleting expenses; the table displays a total of the loaded expenses.
 
+![Expense Tracker running with sample expenses](artifacts/expense-tracker-demo.png)
+
 ## What this project demonstrates
 
 - C# and .NET 10 WinForms event-driven desktop UI.
@@ -40,7 +42,7 @@ To start Docker and initialize the database without launching the app:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -RunApp:$false
 ```
 
-The setup script starts SQL Server without force-recreating the container, waits for SQL readiness, and runs [data/init.sql](data/init.sql) only if `ExpenseDb` does not exist. It then creates or verifies a restricted `ExpenseApp` SQL login, builds, and optionally launches the WinForms app. The application credential is randomly generated and protected with Windows DPAPI for the current user at `%LOCALAPPDATA%\ExpenseTracker\app-db-password.bin`; the connection string is passed only to the app process. The SA password is used only by local setup and is not written to a batch file, connection file, or user-level environment variable. Use the same SA password on later runs. If the existing volume rejects it, stop and recover the correct password; do not delete the volume as a troubleshooting shortcut.
+The setup script starts SQL Server without force-recreating the container, waits for SQL readiness, and runs [data/init.sql](data/init.sql) only if `ExpenseDb` does not exist. A small root startup step fixes ownership on the Docker-managed data directory when needed, then launches `sqlservr` as the non-root `mssql` user. Setup creates or verifies a restricted `ExpenseApp` SQL login, builds, and optionally launches the WinForms app. The application credential is randomly generated and protected with Windows DPAPI for the current user at `%LOCALAPPDATA%\ExpenseTracker\app-db-password.bin`; the connection string is passed only to the app process. The SA password is used only by local setup and is not written to a batch file, connection file, or user-level environment variable. Use the same SA password on later runs. If the existing volume rejects it, stop and recover the correct password; do not delete the volume as a troubleshooting shortcut.
 
 The application login is limited to `db_datareader` and `db_datawriter` in `ExpenseDb` instead of SQL Server administrator access. The database port is bound to `127.0.0.1`, not exposed to other machines on the network. The SQL Server volume is persistent. Setup preserves existing database contents and does not repair permissions or recreate the volume automatically.
 
@@ -69,7 +71,7 @@ flowchart LR
 
 `MainForm` owns layout, input binding, and the displayed total. `ExpenseValidation` handles amount/category input rules. `ExpenseRepository` owns parameterized SQL and explicit SQL types. `data/init.sql` creates the schema and adds starter categories only when the category table is empty.
 
-The form resizes to the available screen area. Real screenshots or a screen recording are useful portfolio evidence, but should be captured from the running app; this repository does not include a generated/mock UI image.
+The form resizes to the available screen area. The screenshot above was captured from the running WinForms app against an isolated, disposable SQL Server database; its sample expenses were entered through the UI test flow.
 
 ## Run again
 
@@ -93,12 +95,14 @@ UI tests require an interactive Windows desktop. The UI test script securely pro
 
 ## Release bundle
 
-The older tracked ZIPs, `v0.1.0` and `v0.2.0`, are historical bundles that still contain a hard-coded example database credential. Do not use or distribute them; they are retained unchanged. The current source-built bundle is [expense-tracker-v0.3.0-win-x64.zip](artifacts/expense-tracker-v0.3.0-win-x64.zip). It prompts for a local SA password and provisions the restricted `ExpenseApp` login; it does not include an application or database password. The bundle has been checked for expected paths and credential files, but has not yet been exercised on a clean Windows profile.
+Only the latest review bundle is kept in `artifacts`: [expense-tracker-v0.3.8-win-x64.zip](artifacts/expense-tracker-v0.3.8-win-x64.zip). It prompts for a local SA password and provisions the restricted `ExpenseApp` login; it does not include an application or database password. Bundle setup, credential creation/reuse, integration tests, and UI tests passed on this Windows profile with an isolated temporary Docker project/volume and a separate DPAPI credential file. The bundle predates the latest source UI layout adjustment, so rebuild and rerun its UI flow before distributing it as a build of the current source.
+
+Earlier release ZIPs, including bundles with a hard-coded example database credential, were removed from the current source tree. They may still exist in Git history; do not restore or distribute them. If any real credential was ever used in those bundles, rotate it.
 
 To create a later version without overwriting any existing archive:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.1"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.9"
 ```
 
 The self-contained app still requires Docker Desktop because SQL Server runs in a container.
@@ -116,7 +120,7 @@ The self-contained app still requires Docker Desktop because SQL Server runs in 
 
 - `src/ExpenseTracker.WinForms`: WinForms UI, validation, and SQL repository.
 - `src/ExpenseTracker.Tests`: validation, repository checks, and opt-in integration tests.
-- `src/ExpenseTracker.UiTests`: interactive FlaUI smoke test.
+- `src/ExpenseTracker.UiTests`: interactive FlaUI launch and CRUD/edit/cancel/restart tests.
 - `data/init.sql`: database schema and safe starter categories.
 - `scripts/setup`: Docker/setup and release helpers.
 - `scripts/tests`: unit, integration, UI, and smoke-test entry points.
@@ -131,8 +135,8 @@ The self-contained app still requires Docker Desktop because SQL Server runs in 
 - LocalDB/MDF fallback remains for compatibility; Docker is the documented primary path.
 - The app supports create/read/update/delete for expenses and create/read for categories; it has no category edit/delete or reporting dashboard.
 - Setup uses the local SQL Server SA credential only to provision the database and restricted `ExpenseApp` login. The app uses `ExpenseApp`, not the SA account. This local credential model is still not a production security boundary.
-- There is no real screenshot/video asset in this repository yet; only add evidence captured from the actual running application.
+- The screenshot is authentic application output from a disposable demo database; no screen recording is included.
 
 ## Repository hygiene
 
-Do not commit `.env`, connection files, database binaries, build output, test results, logs, or passwords. The historical `v0.1.0` and `v0.2.0` ZIPs are retained for history but are not recommended as the current demo.
+Do not commit `.env`, connection files, database binaries, build output, test results, logs, or passwords. Earlier release ZIPs, including bundles with a hard-coded example credential, are not part of the current source tree. They may remain in Git history; do not restore or distribute them.

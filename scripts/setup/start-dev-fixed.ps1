@@ -124,19 +124,29 @@ $ready = $false
 $sqlcmd = $null
 for ($attempt = 0; $attempt -lt 60; $attempt++) {
     foreach ($candidate in @("/opt/mssql-tools/bin/sqlcmd", "/opt/mssql-tools18/bin/sqlcmd")) {
-        & $docker.Source compose --project-directory $repoRoot exec -T mssql test -x $candidate 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $sqlcmd = $candidate
-            break
+        try {
+            & $docker.Source compose --project-directory $repoRoot exec -T mssql test -x $candidate 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $sqlcmd = $candidate
+                break
+            }
+        }
+        catch {
+            $sqlcmd = $null
         }
     }
 
     if ($sqlcmd) {
-        & $docker.Source compose --project-directory $repoRoot exec -T `
-            -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa -Q "SELECT 1" -C -b 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $ready = $true
-            break
+        try {
+            & $docker.Source compose --project-directory $repoRoot exec -T `
+                -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa -Q "SELECT 1" -C -b 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $ready = $true
+                break
+            }
+        }
+        catch {
+            $ready = $false
         }
     }
     Start-Sleep -Seconds 2
@@ -240,7 +250,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $connectionBuilder = New-Object System.Data.Common.DbConnectionStringBuilder
-$connectionBuilder["Data Source"] = "localhost,$sqlPort"
+$connectionBuilder["Data Source"] = "127.0.0.1,$sqlPort"
 $connectionBuilder["Initial Catalog"] = "ExpenseDb"
 $connectionBuilder["User ID"] = "ExpenseApp"
 $connectionBuilder["Password"] = $appPassword

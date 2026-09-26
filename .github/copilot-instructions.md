@@ -17,7 +17,7 @@
 - Code lives in src/ExpenseTracker.WinForms.
 - Database setup lives in docker-compose.yml and data/init.sql.
 - New machine setup uses setup-all.ps1.
-- Keep README.md and SETUP_ALL_STEPS.md short, practical, and easy to follow.
+- Keep README.md and docs/TESTING_GUIDE.md short, practical, and easy to follow.
 - Do not commit large binaries (.mdf/.ldf/.ndf), build outputs (bin/obj), or local environment files.
 
 ## Working style

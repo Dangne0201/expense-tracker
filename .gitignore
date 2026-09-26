@@ -1,47 +1,39 @@
-# .gitignore cho dự án .NET
+# .NET build output
 bin/
 obj/
 .vs/
-.vscode/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
-
-# Rider
-.idea/
-
-# NuGet
-*.nupkg
-
-# EF Migrations snapshot or generated files (tùy theo project)
-**/Migrations/
-
-# Docker env file (chứa secrets)
-.env
-
-# Visual Studio Code settings
-.local.settings.json
-
-# Logs
-*.log
 TestResults/
 **/TestResults/
 
-# OS files
-Thumbs.db
-Desktop.ini
+# IDE settings
+.vscode/
+.idea/
+.local.settings.json
 
-# Local DB and backups
-# Ignore SQL Server database files and temp files in data/ (DB binaries are large and machine-specific)
+# NuGet packages
+*.nupkg
+
+# Docker and local secrets
+.env
+sqlconn.txt
+src/ExpenseTracker.WinForms/bin/Debug/net10.0-windows/sqlconn.txt
+src/ExpenseTracker.WinForms/bin/Release/net10.0-windows/publish/sqlconn.txt
+
+# SQL Server database files and logs
 data/*.mdf
 data/*.ndf
 data/*.ldf
-# Keep init.sql and other scripts
+*.log
 
-# other
+# Generated dependencies and OS files
+/node_modules/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Other local files
 .properties
-n# local sqlconn file (should not be committed if it contains secrets)
-sqlconn.txt
-src\ExpenseTracker.WinForms\bin\Debug\net10.0-windows\sqlconn.txt
-src\ExpenseTracker.WinForms\bin\Release\net10.0-windows\publish\sqlconn.txt

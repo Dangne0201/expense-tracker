@@ -2,6 +2,9 @@ services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2019-latest
     container_name: expense-mssql
+    user: "0:0"
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["if [ \"$(stat -c '%U' /var/opt/mssql/data)\" != \"mssql\" ]; then chown -R mssql:0 /var/opt/mssql/data; fi && exec su -s /bin/bash mssql -c '/opt/mssql/bin/permissions_check.sh /opt/mssql/bin/sqlservr'"]
     environment:
       SA_PASSWORD: "${SA_PASSWORD:?Set SA_PASSWORD in the process environment or local .env file}"
       ACCEPT_EULA: "Y"
