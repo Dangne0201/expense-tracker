@@ -7,14 +7,14 @@
 - The schema source of truth is [data/init.sql](data/init.sql); database files are not stored in Git.
 - This is a portfolio project for local demonstration, not a production system with a server-side trust boundary.
 
-The app helps a single local user track expenses by category, amount, date, and note. It supports adding categories and creating, viewing, editing, and deleting expenses; the table displays a total of the loaded expenses.
+The app helps a single local user track expenses by category, amount, date, and note. It supports adding categories and creating, viewing, editing, and deleting expenses; date-range and category filters, monthly totals, and a filtered total help review spending.
 
 ![Expense Tracker running with sample expenses](artifacts/expense-tracker-demo.png)
 
 ## What this project demonstrates
 
 - C# and .NET 10 WinForms event-driven desktop UI.
-- Separation between UI (`MainForm`), input rules (`ExpenseValidation`), and SQL access (`ExpenseRepository`).
+- Separation between the WinForms UI, platform-neutral `ExpenseTracker.Core` validation/summary rules, and SQL access (`ExpenseRepository`).
 - Parameterized SQL with explicit SQL types and `DECIMAL(18,2)` handling.
 - SQL Server schema initialization, Docker Compose persistence, and repeatable Windows setup.
 - Database-independent unit tests plus separately tagged local integration tests.
@@ -52,9 +52,10 @@ After setup, the main window loads categories and expenses automatically. A new 
 
 1. Select a category and enter a positive amount.
 2. Add the expense and confirm it appears in the table and total.
-3. Double-click the expense row, change a field, and click **Save Changes**. Press Escape to cancel editing.
-4. Delete that expense and confirm the total updates.
-5. Add a category, restart the app, and confirm the category persists.
+3. Filter by date range or category; check the selected month's total and use **Clear** to reset filters.
+4. Double-click the expense row, change a field, and click **Save Changes**. Press Escape to cancel editing.
+5. Delete that expense and confirm the total updates after the confirmation prompt.
+6. Add a category, restart the app, and confirm the category persists.
 
 For an interview walkthrough, explain the split between the WinForms UI, `ExpenseValidation`, `ExpenseRepository`, SQL Server, and the database initialization script. The repository deliberately remains a local single-user demo; it does not claim multi-user security.
 
@@ -62,14 +63,15 @@ For an interview walkthrough, explain the split between the WinForms UI, `Expens
 
 ```mermaid
 flowchart LR
-    UI[WinForms MainForm] --> Validation[ExpenseValidation]
-    UI --> Repository[ExpenseRepository]
+    UI[WinForms MainForm] --> Core[ExpenseTracker.Core]
+    Core --> Validation[ExpenseValidation]
+    Core --> Repository[ExpenseRepository]
     Repository --> Driver[Microsoft.Data.SqlClient]
     Driver --> DB[(SQL Server in Docker)]
     Init[data/init.sql] --> DB
 ```
 
-`MainForm` owns layout, input binding, and the displayed total. `ExpenseValidation` handles amount/category input rules. `ExpenseRepository` owns parameterized SQL and explicit SQL types. `data/init.sql` creates the schema and adds starter categories only when the category table is empty.
+`MainForm` owns layout, input binding, and user-facing status. The platform-neutral `ExpenseTracker.Core` project contains amount/category validation, monthly summaries, and `ExpenseRepository` with parameterized SQL and explicit SQL types. `data/init.sql` creates the schema and adds starter categories only when the category table is empty.
 
 The form resizes to the available screen area. The screenshot above was captured from the running WinForms app against an isolated, disposable SQL Server database; its sample expenses were entered through the UI test flow.
 
@@ -79,7 +81,7 @@ Run `setup-all.ps1` again with the same SA password to start the service and app
 
 ## Tests
 
-Database-independent unit tests:
+Database-independent core and unit tests:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-unit-tests.ps1
@@ -91,7 +93,7 @@ Integration tests default to the local Docker service and allow only `ExpenseDb`
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1
 ```
 
-UI tests require an interactive Windows desktop. By default the UI test script starts/preserves the local Docker database and securely prompts for its admin password; it removes the uniquely named test category and its expenses during teardown. For isolated QA, use a disposable SQL Server on another loopback port, set `SQL_CONN`, and pass `-Port`; this mode skips repository database setup and rejects non-local hosts, another database, or port 1433. See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for an example. GitHub Actions runs restore, build, and database-independent tests only.
+UI tests require an interactive Windows desktop. By default the UI test script starts/preserves the local Docker database and securely prompts for its admin password; it removes the uniquely named test category and its expenses during teardown. For isolated QA, use a disposable SQL Server on another loopback port, set `SQL_CONN`, and pass `-Port`; this mode skips repository database setup and rejects non-local hosts, another database, or port 1433. See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for an example. GitHub Actions builds and runs unit tests on Windows and runs repository integration tests against a disposable SQL Server container on Ubuntu; interactive UI tests remain local/manual.
 
 ## Release bundle
 
@@ -103,7 +105,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-relea
 
 The generated ZIP is ignored by Git because it is a large build artifact. It includes `BUILD-INFO.txt` with the source commit and tracked changes present at package time. The bundle prompts for a local SQL Server password, creates the restricted `ExpenseApp` login, and contains no app/database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after the isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass.
 
-The published `v0.3.9` bundle was built from source commit `d5ddf32`. Its SHA-256 is `97229af4e65979976c7e04bb18e2c0c1b9b043d2fd928e386acfb93e1150b9f3`.
+The currently published `v0.3.9` bundle was built from source commit `d5ddf32`. Its SHA-256 is `97229af4e65979976c7e04bb18e2c0c1b9b043d2fd928e386acfb93e1150b9f3`. Newer source changes require a new bundle version before they appear in a downloadable release.
 
 ## Troubleshooting
 

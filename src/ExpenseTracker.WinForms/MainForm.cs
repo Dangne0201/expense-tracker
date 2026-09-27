@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
+using ExpenseTracker.Core;
 using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.WinForms
@@ -37,8 +38,18 @@ namespace ExpenseTracker.WinForms
         private TextBox txtNote;
         private Button btnAddExpense;
         private Button btnDeleteExpense;
+        private DateTimePicker dtpFilterFrom;
+        private DateTimePicker dtpFilterTo;
+        private DateTimePicker dtpSummaryMonth;
+        private ComboBox cboFilterCategory;
+        private Button btnApplyFilters;
+        private Button btnClearFilters;
+        private Label lblMonthTotal;
+        private Label lblExpenseStatus;
+        private ErrorProvider _inputErrors;
         private bool _isEditingExpense;
         private int _editingExpenseId;
+        private int _expenseLoadVersion;
 
         public MainForm()
         {
@@ -46,10 +57,10 @@ namespace ExpenseTracker.WinForms
             EnsureDatabaseAvailable();
             _repository = new ExpenseRepository(_conn);
             InitializeComponents();
-            Shown += (s, e) =>
+            Shown += async (s, e) =>
             {
                 LoadCategories();
-                LoadExpenses();
+                await LoadExpensesAsync();
             };
         }
 
@@ -118,6 +129,15 @@ namespace ExpenseTracker.WinForms
                     }
                 }
             };
+            dgvExpenses.AccessibleName = "Expenses";
+            dgvExpenses.AccessibleDescription = "Expense records and their total. Double-click an expense to edit it.";
+
+            _inputErrors = new ErrorProvider
+            {
+                ContainerControl = this,
+                BlinkStyle = ErrorBlinkStyle.NeverBlink
+            };
+            var expenseFilterPanel = CreateExpenseFilterPanel();
 
             // Shared footer row keeps category controls aligned with the expense input area.
             const int footerHeight = 120;
@@ -130,7 +150,8 @@ namespace ExpenseTracker.WinForms
             var footerLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
             var categoryButtonWidth = categoryPanelWidth < 280 ? 60 : 75;
             btnLoadCategories = new Button { Name = "btnLoadCategories", Text = "Load", AutoSize = false, Width = categoryButtonWidth, Height = 44, Padding = new Padding(6), Margin = new Padding(2), TextAlign = ContentAlignment.MiddleCenter };
-            txtNewCategory = new TextBox { Name = "txtNewCategory", Width = Math.Max(80, categoryPanelWidth - (categoryButtonWidth * 2) - 40), Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(2, 6, 2, 6) };
+            txtNewCategory = new TextBox { Name = "txtNewCategory", Width = Math.Max(80, categoryPanelWidth - (categoryButtonWidth * 2) - 40), Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(2, 6, 2, 6), AccessibleName = "New category name", AccessibleDescription = "Enter a category name up to 200 characters." };
+            txtNewCategory.TextChanged += (s, e) => _inputErrors.SetError(txtNewCategory, string.Empty);
             btnAddCategory = new Button { Name = "btnAddCategory", Text = "Add", AutoSize = false, Width = categoryButtonWidth, Height = 44, Padding = new Padding(6), Margin = new Padding(2), TextAlign = ContentAlignment.MiddleCenter };
 
             footerLeft.Controls.Add(btnLoadCategories);
@@ -159,14 +180,15 @@ namespace ExpenseTracker.WinForms
             inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            var lblAmount = new Label { Text = "Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(3, 8, 6, 3) };
-            txtAmount = new TextBox { Name = "txtAmount", Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6) };
+            var lblAmount = new Label { Text = "&Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(3, 8, 6, 3), AccessibleName = "Amount input label" };
+            txtAmount = new TextBox { Name = "txtAmount", Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), AccessibleName = "Expense amount", AccessibleDescription = "Enter a positive amount with at most two decimal places." };
+            txtAmount.TextChanged += (s, e) => _inputErrors.SetError(txtAmount, string.Empty);
 
-            var lblDate = new Label { Text = "Date", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
-            dtpDate = new DateTimePicker { Name = "dtpDate", Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6) };
+            var lblDate = new Label { Text = "&Date", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3), AccessibleName = "Expense date label" };
+            dtpDate = new DateTimePicker { Name = "dtpDate", Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "yyyy-MM-dd HH:mm", Margin = new Padding(3, 6, 6, 6), AccessibleName = "Expense date and time" };
 
-            var lblNote = new Label { Text = "Note", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3) };
-            txtNote = new TextBox { Name = "txtNote", Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), Width = 200 };
+            var lblNote = new Label { Text = "&Note", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3), AccessibleName = "Expense note label" };
+            txtNote = new TextBox { Name = "txtNote", Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), Width = 200, AccessibleName = "Expense note" };
 
             inputTable.Controls.Add(lblAmount, 0, 0);
             inputTable.Controls.Add(txtAmount, 1, 0);
@@ -200,7 +222,7 @@ namespace ExpenseTracker.WinForms
             footerRightTable.Controls.Add(btnAddExpense, 3, 1);
 
             btnAddExpense.Click += (s, e) => AddExpense();
-            btnLoadExpenses.Click += (s, e) => LoadExpenses();
+            btnLoadExpenses.Click += async (s, e) => await LoadExpensesAsync();
             btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
             dgvExpenses.CellDoubleClick += (s, e) =>
             {
@@ -216,6 +238,7 @@ namespace ExpenseTracker.WinForms
             pnlLeft.Controls.Add(lblCat);
 
             pnlRight.Controls.Add(dgvExpenses);
+            pnlRight.Controls.Add(expenseFilterPanel);
             pnlRight.Controls.Add(lblExp);
 
             root.Controls.Add(pnlLeft, 0, 0);
@@ -233,6 +256,137 @@ namespace ExpenseTracker.WinForms
 
             Resize += (s, e) => LayoutMainContent();
             LayoutMainContent();
+        }
+
+        private Panel CreateExpenseFilterPanel()
+        {
+            var filterPanel = new Panel
+            {
+                Name = "expenseFilterPanel",
+                Dock = DockStyle.Top,
+                Height = 126,
+                AccessibleName = "Expense filters"
+            };
+            var filters = new FlowLayoutPanel
+            {
+                Name = "expenseFilters",
+                Location = new Point(0, 0),
+                Height = 66,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                AutoScroll = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                Padding = new Padding(4)
+            };
+            filterPanel.Resize += (s, e) => filters.Width = filterPanel.ClientSize.Width;
+
+            dtpFilterFrom = new DateTimePicker
+            {
+                Name = "dtpFilterFrom",
+                Width = 142,
+                Format = DateTimePickerFormat.Custom,
+                CustomFormat = "'From' yyyy-MM-dd",
+                ShowCheckBox = true,
+                Checked = false,
+                Margin = new Padding(3, 6, 3, 3),
+                AccessibleName = "Filter expenses from date",
+                AccessibleDescription = "Optional inclusive start date for expense filtering."
+            };
+            dtpFilterTo = new DateTimePicker
+            {
+                Name = "dtpFilterTo",
+                Width = 142,
+                Format = DateTimePickerFormat.Custom,
+                CustomFormat = "'To' yyyy-MM-dd",
+                ShowCheckBox = true,
+                Checked = false,
+                Margin = new Padding(3, 6, 3, 3),
+                AccessibleName = "Filter expenses through date",
+                AccessibleDescription = "Optional inclusive end date for expense filtering."
+            };
+            cboFilterCategory = new ComboBox
+            {
+                Name = "cboFilterCategory",
+                Width = 145,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Margin = new Padding(3, 6, 3, 3),
+                AccessibleName = "Filter expenses by category"
+            };
+            btnApplyFilters = new Button
+            {
+                Name = "btnApplyFilters",
+                Text = "Apply",
+                Width = 76,
+                Height = 32,
+                Margin = new Padding(3, 5, 3, 3),
+                AccessibleName = "Apply expense filters"
+            };
+            btnClearFilters = new Button
+            {
+                Name = "btnClearFilters",
+                Text = "Clear",
+                Width = 76,
+                Height = 32,
+                Margin = new Padding(3, 5, 3, 3),
+                AccessibleName = "Clear expense filters"
+            };
+            filters.Controls.AddRange(new Control[]
+            {
+                dtpFilterFrom,
+                dtpFilterTo,
+                cboFilterCategory,
+                btnApplyFilters,
+                btnClearFilters
+            });
+
+            dtpSummaryMonth = new DateTimePicker
+            {
+                Name = "dtpSummaryMonth",
+                Location = new Point(8, 73),
+                Width = 130,
+                Format = DateTimePickerFormat.Custom,
+                CustomFormat = "MMMM yyyy",
+                ShowUpDown = true,
+                Value = DateTime.Today,
+                AccessibleName = "Month for monthly total"
+            };
+            lblMonthTotal = new Label
+            {
+                Name = "lblMonthTotal",
+                AutoSize = true,
+                Location = new Point(148, 78),
+                Text = "Month total: --",
+                AccessibleDescription = "Total expense amount for the selected month and category."
+            };
+            lblExpenseStatus = new Label
+            {
+                Name = "lblExpenseStatus",
+                Dock = DockStyle.Bottom,
+                Height = 23,
+                Padding = new Padding(8, 3, 3, 3),
+                Text = "Ready",
+                AccessibleDescription = "Shows the current expense loading, empty, or result status."
+            };
+            filterPanel.Controls.Add(filters);
+            filterPanel.Controls.Add(dtpSummaryMonth);
+            filterPanel.Controls.Add(lblMonthTotal);
+            filterPanel.Controls.Add(lblExpenseStatus);
+
+            btnApplyFilters.Click += async (s, e) => await LoadExpensesAsync();
+            btnClearFilters.Click += async (s, e) =>
+            {
+                dtpFilterFrom.Checked = false;
+                dtpFilterTo.Checked = false;
+                dtpSummaryMonth.Value = DateTime.Today;
+                if (cboFilterCategory.Items.Count > 0)
+                {
+                    cboFilterCategory.SelectedValue = 0;
+                }
+
+                await LoadExpensesAsync();
+            };
+
+            return filterPanel;
         }
 
         /// <summary>
@@ -449,9 +603,26 @@ namespace ExpenseTracker.WinForms
         {
             try
             {
+                var previousFilterCategory = cboFilterCategory.SelectedValue is int selectedId
+                    ? selectedId
+                    : 0;
+                var categories = _repository.GetCategories();
                 lstCategories.DisplayMember = "Name";
                 lstCategories.ValueMember = "Id";
-                lstCategories.DataSource = _repository.GetCategories();
+                lstCategories.DataSource = categories;
+
+                var filterCategories = categories.Copy();
+                var allCategories = filterCategories.NewRow();
+                allCategories["Id"] = 0;
+                allCategories["Name"] = "All categories";
+                filterCategories.Rows.InsertAt(allCategories, 0);
+                cboFilterCategory.DisplayMember = "Name";
+                cboFilterCategory.ValueMember = "Id";
+                cboFilterCategory.DataSource = filterCategories;
+                cboFilterCategory.SelectedValue = filterCategories.AsEnumerable()
+                    .Any(row => row.Field<int>("Id") == previousFilterCategory)
+                    ? previousFilterCategory
+                    : 0;
             }
             catch (Exception ex)
             {
@@ -464,7 +635,8 @@ namespace ExpenseTracker.WinForms
             var name = txtNewCategory.Text.Trim();
             if (!ExpenseValidation.IsValidCategoryName(name))
             {
-                MessageBox.Show("Enter a category name with at most 200 characters.");
+                _inputErrors.SetError(txtNewCategory, "Enter a category name with 1–200 characters.");
+                txtNewCategory.Focus();
                 return;
             }
 
@@ -483,11 +655,44 @@ namespace ExpenseTracker.WinForms
         /// <summary>
         /// Loads the expense grid with amount, date, note, and category name.
         /// </summary>
-        private void LoadExpenses()
+        private async Task LoadExpensesAsync()
         {
+            var startDate = dtpFilterFrom.Checked ? dtpFilterFrom.Value.Date : (DateTime?)null;
+            var endDate = dtpFilterTo.Checked ? dtpFilterTo.Value.Date : (DateTime?)null;
+            var categoryId = cboFilterCategory.SelectedValue is int selectedCategoryId &&
+                             selectedCategoryId > 0
+                ? selectedCategoryId
+                : (int?)null;
+            var summaryMonth = dtpSummaryMonth.Value;
+
+            if (startDate.HasValue && endDate.HasValue && startDate.Value > endDate.Value)
+            {
+                lblExpenseStatus.Text = "Start date must be on or before the end date.";
+                dtpFilterFrom.Focus();
+                return;
+            }
+
+            var requestVersion = System.Threading.Interlocked.Increment(ref _expenseLoadVersion);
+            btnApplyFilters.Enabled = false;
+            btnClearFilters.Enabled = false;
+            UseWaitCursor = true;
+            lblExpenseStatus.Text = "Loading expenses...";
             try
             {
-                var dt = _repository.GetExpenses();
+                var result = await Task.Run(() =>
+                {
+                    var expenses = _repository.GetExpenses(startDate, endDate, categoryId);
+                    var monthTotal = _repository.GetMonthlyTotal(summaryMonth, categoryId);
+                    return (Expenses: expenses, MonthTotal: monthTotal);
+                });
+
+                if (IsDisposed || requestVersion != System.Threading.Volatile.Read(ref _expenseLoadVersion))
+                {
+                    return;
+                }
+
+                var dt = result.Expenses;
+                var expenseCount = dt.Rows.Count;
 
                 var totalAmount = ExpenseSummary.CalculateTotal(
                     dt.AsEnumerable()
@@ -518,10 +723,28 @@ namespace ExpenseTracker.WinForms
                     dgvExpenses.Columns["CategoryName"].HeaderText = "Category";
                 }
                 SetExpenseColumnLayout();
+                lblMonthTotal.Text =
+                    $"Month total ({summaryMonth:MMMM yyyy}): {ExpenseSummary.FormatAmount(result.MonthTotal)}";
+                lblExpenseStatus.Text = expenseCount == 0
+                    ? "No expenses match these filters. Clear filters or add an expense."
+                    : $"Showing {expenseCount} expense{(expenseCount == 1 ? string.Empty : "s")}.";
             }
             catch (Exception ex)
             {
+                if (requestVersion == System.Threading.Volatile.Read(ref _expenseLoadVersion))
+                {
+                    lblExpenseStatus.Text = "Unable to load expenses. Check the database and try again.";
+                }
                 ShowDatabaseError("Loading expenses", ex);
+            }
+            finally
+            {
+                if (!IsDisposed && requestVersion == System.Threading.Volatile.Read(ref _expenseLoadVersion))
+                {
+                    btnApplyFilters.Enabled = true;
+                    btnClearFilters.Enabled = true;
+                    UseWaitCursor = false;
+                }
             }
         }
 
@@ -576,7 +799,10 @@ namespace ExpenseTracker.WinForms
 
             if (!ExpenseValidation.TryParseAmount(txtAmount.Text, out var amount))
             {
-                MessageBox.Show($"Enter an amount greater than zero and no more than {ExpenseValidation.MaxAmount:N2}.");
+                _inputErrors.SetError(
+                    txtAmount,
+                    $"Enter a positive amount with at most two decimals, up to {ExpenseValidation.MaxAmount:N2}.");
+                txtAmount.Focus();
                 return;
             }
 
@@ -597,7 +823,7 @@ namespace ExpenseTracker.WinForms
                 }
 
                 ResetExpenseEditor();
-                LoadExpenses();
+                _ = LoadExpensesAsync();
             }
             catch (Exception ex)
             {
@@ -623,12 +849,24 @@ namespace ExpenseTracker.WinForms
                 }
 
                 var id = Convert.ToInt32(idObj);
+                var confirmation = MessageBox.Show(
+                    this,
+                    "Delete the selected expense? This action cannot be undone.",
+                    "Confirm deletion",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (confirmation != DialogResult.Yes)
+                {
+                    return;
+                }
+
                 _repository.DeleteExpense(id);
                 if (_isEditingExpense && id == _editingExpenseId)
                 {
                     ResetExpenseEditor();
                 }
-                LoadExpenses();
+                _ = LoadExpensesAsync();
             }
             catch (Exception ex)
             {
@@ -641,6 +879,13 @@ namespace ExpenseTracker.WinForms
             var detail = exception is SqlException sqlException
                 ? $"SQL error {sqlException.Number}"
                 : exception.GetType().Name;
+            Trace.TraceError(
+                "{0} failed. ExceptionType={1}; SqlError={2}",
+                operation,
+                exception.GetType().Name,
+                exception is SqlException databaseException
+                    ? databaseException.Number.ToString(CultureInfo.InvariantCulture)
+                    : "none");
             MessageBox.Show(
                 $"{operation} failed ({detail}). Check that the database is available and try again.",
                 "Database error",

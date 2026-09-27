@@ -6,7 +6,7 @@ namespace ExpenseTracker.Tests;
 
 public class DbIntegrationTests
 {
-    private static string GetLocalTestConnectionString()
+    internal static string GetLocalTestConnectionString()
     {
         var connectionString = Environment.GetEnvironmentVariable("SQL_CONN");
         if (string.IsNullOrWhiteSpace(connectionString))

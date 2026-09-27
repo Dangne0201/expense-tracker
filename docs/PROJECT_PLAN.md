@@ -12,21 +12,25 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - Docker SQL Server setup with persistent volume and initialization from `data/init.sql`.
 - Starter categories for a new database without fake expense history.
 - Restricted local application login; setup protects its generated password for the current Windows user.
-- Database-independent validation/summary tests and separately tagged, local-only integration test.
-- Windows GitHub Actions workflow for restore, build, and database-independent unit tests.
+- Database-independent core tests and separately tagged repository integration tests on disposable SQL Server instances.
+- Windows GitHub Actions workflow for restore/build/unit tests plus an Ubuntu disposable-SQL integration job.
 - Reviewer-oriented setup, demo steps, architecture notes, and documented security limitations.
 - Responsive window sizing, current-culture currency formatting, and a clear guard against deleting the total row.
 - DataGridView columns sized with fill weights so the category column remains in the viewport when the window is resized.
 - UI checks for visible grid-cell bounds and screenshot capture cropped to the app window.
 - A locally generated, ignored self-contained Windows bundle that records its source commit and tracked changes in `BUILD-INFO.txt`.
 - A disposable-database UI-test mode that does not run setup against the developer's persistent database and cleans up its uniquely named test category.
+- A platform-neutral `ExpenseTracker.Core` project for validation, summaries, and the SQL repository, referenced by the WinForms UI.
+- Expense date-range/category filters, a monthly total, a clear-filters action, and visible loading/empty/error status.
+- Inline validation feedback, delete confirmation, keyboard mnemonics, and accessible names/descriptions for key controls.
+- An Ubuntu CI job that initializes an ephemeral SQL Server from the schema and runs repository integration tests.
 
 ## Verification completed
 
 - Release solution build: passed with 0 warnings and 0 errors.
-- Unit tests: 13 passed.
+- Unit tests: 22 passed, including culture-specific parsing and decimal-boundary cases.
 - UI tests: 2 passed against a disposable SQL Server; the extracted `v0.3.9` bundle executable also passed both UI tests.
-- Integration test: 1 passed against a disposable SQL Server.
+- Repository integration tests: 3 passed against a disposable SQL Server, covering CRUD, filtering, monthly totals, and foreign-key failures.
 - The `v0.3.9` bundle was rebuilt from the current source and its metadata and startup files were inspected. It is ignored by Git.
 - The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
 - GitHub Actions `.NET` workflow for commit `d5ddf32` completed successfully.

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Linq;
 using System.Runtime.InteropServices;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
@@ -95,7 +96,7 @@ DELETE FROM Categories WHERE Name = @name;",
                 }
                 finally
                 {
-                    app.Close(killIfCloseFails: true);
+                    CloseIfRunning(app);
                 }
             }
         }
@@ -141,6 +142,16 @@ DELETE FROM Categories WHERE Name = @name;",
                         $"Amount input={Find(main!, "txtAmount").AsTextBox().Text}; note input={Find(main!, "txtNote").AsTextBox().Text}");
                     Assert.That(grid.Rows.Count, Is.EqualTo(2), "The grid should show one expense and one total row");
                     AssertGridRowFitsViewport(grid, addedRow!, (IntPtr)main!.Properties.NativeWindowHandle.Value);
+                    var categoryFilter = Find(main!, "cboFilterCategory").AsComboBox();
+                    categoryFilter.Select(categoryName);
+                    Find(main!, "btnApplyFilters").AsButton().Invoke();
+                    Assert.That(WaitForRow(grid, note, shouldExist: true), Is.Not.Null,
+                        "Filtering by the expense category should retain its matching row");
+                    Assert.That(Find(main!, "lblMonthTotal").Name, Does.Contain("Month total"));
+                    Assert.That(Find(main!, "lblExpenseStatus").Name, Does.Contain("Showing 1 expense"));
+                    Find(main!, "btnClearFilters").AsButton().Invoke();
+                    Assert.That(WaitForRow(grid, note, shouldExist: true), Is.Not.Null);
+                    addedRow = WaitForRow(grid, note, shouldExist: true)!;
 
                     DoubleClickCell(FindNoteCell(addedRow!, note));
                     var amountInput = Find(main!, "txtAmount").AsTextBox();
@@ -158,6 +169,7 @@ DELETE FROM Categories WHERE Name = @name;",
                     noteInput.Text = editedNote;
                     Find(main!, "btnAddExpense").AsButton().Invoke();
                     var updatedRow = FindRow(grid, editedNote);
+                    updatedRow ??= WaitForRow(grid, editedNote, shouldExist: true);
                     Assert.That(updatedRow, Is.Not.Null, "Saving edits should update the row shown in the grid");
                     Assert.That(FindRow(grid, note), Is.Null, "The old note should no longer be present after edit");
                     Assert.That(grid.Rows.Count, Is.EqualTo(2), "The displayed total should include the edited expense only once");
@@ -165,7 +177,7 @@ DELETE FROM Categories WHERE Name = @name;",
                 }
                 finally
                 {
-                    app.Close(killIfCloseFails: true);
+                    CloseIfRunning(app);
                 }
             }
 
@@ -182,14 +194,16 @@ DELETE FROM Categories WHERE Name = @name;",
                     Assert.That(persistedRow, Is.Not.Null, "The saved edit and category should persist after restart");
                     Assert.That(restartedGrid.Rows.Count, Is.EqualTo(2), "The persisted expense should still contribute to the total row");
                     FindNoteCell(persistedRow!, editedNote).Click();
-                    Find(main!, "btnDeleteExpense").AsButton().Invoke();
+                    Find(main!, "btnDeleteExpense").AsButton().Click();
+                    ConfirmDeleteDialog(automation, main!);
+                    WaitForRow(restartedGrid, editedNote, shouldExist: false);
                     Assert.That(FindRow(restartedGrid, editedNote), Is.Null, "Deleting after restart should remove the expense");
                     Assert.That(restartedGrid.Rows.Count, Is.EqualTo(1), "Deleting the only expense should leave the zero-total row");
                     Assert.That(FindRow(restartedGrid, "TOTAL"), Is.Not.Null, "The total row should remain visible when there are no expenses");
                 }
                 finally
                 {
-                    restartedApp.Close(killIfCloseFails: true);
+                    CloseIfRunning(restartedApp);
                 }
             }
 
@@ -207,16 +221,77 @@ DELETE FROM Categories WHERE Name = @name;",
                 }
                 finally
                 {
-                    finalApp.Close(killIfCloseFails: true);
+                    CloseIfRunning(finalApp);
                 }
             }
         }
 
         private static AutomationElement Find(AutomationElement root, string automationId)
         {
-            var element = root.FindFirstDescendant(condition => condition.ByAutomationId(automationId));
-            Assert.That(element, Is.Not.Null, $"Could not find UI element '{automationId}'.");
-            return element!;
+            var timeout = System.Diagnostics.Stopwatch.StartNew();
+            AutomationElement? element;
+            do
+            {
+                element = root.FindFirstDescendant(condition => condition.ByAutomationId(automationId));
+                if (element != null)
+                {
+                    return element;
+                }
+
+                System.Threading.Thread.Sleep(100);
+            } while (timeout.Elapsed < TimeSpan.FromSeconds(5));
+
+            Assert.Fail($"Could not find UI element '{automationId}'.");
+            throw new InvalidOperationException($"Could not find UI element '{automationId}'.");
+        }
+
+        private static void CloseIfRunning(FlaUIApplication application)
+        {
+            int processId;
+            try
+            {
+                processId = application.ProcessId;
+            }
+            catch (InvalidOperationException)
+            {
+                return;
+            }
+
+            try
+            {
+                using var process = System.Diagnostics.Process.GetProcessById(processId);
+                if (!process.HasExited)
+                    application.Close(killIfCloseFails: true);
+            }
+            catch (ArgumentException)
+            {
+                // The UI process already exited; preserve any earlier test failure.
+            }
+        }
+
+        private static void ConfirmDeleteDialog(UIA3Automation automation, AutomationElement mainWindow)
+        {
+            var timeout = System.Diagnostics.Stopwatch.StartNew();
+            AutomationElement? dialog = null;
+            var desktop = automation.GetDesktop();
+            while (timeout.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                dialog = desktop.FindFirstDescendant(condition => condition.ByName("Confirm deletion"))
+                    ?? mainWindow.FindFirstDescendant(condition => condition.ByName("Confirm deletion"));
+                if (dialog != null)
+                {
+                    break;
+                }
+
+                System.Threading.Thread.Sleep(100);
+            }
+
+            Assert.That(dialog, Is.Not.Null,
+                "The delete confirmation dialog should be shown. " +
+                $"Desktop windows: {string.Join(", ", desktop.FindAllChildren(condition => condition.ByControlType(ControlType.Window)).Select(window => window.Name))}");
+            var yesButton = dialog!.FindFirstDescendant(condition => condition.ByName("Yes"));
+            Assert.That(yesButton, Is.Not.Null, "The confirmation dialog should expose a Yes button.");
+            yesButton!.AsButton().Invoke();
         }
 
         private static string ResolveAppPath(string repoRoot, string configuration)

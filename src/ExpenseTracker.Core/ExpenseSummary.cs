@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace ExpenseTracker.WinForms;
+namespace ExpenseTracker.Core;
 
 public static class ExpenseSummary
 {

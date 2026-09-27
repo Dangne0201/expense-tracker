@@ -27,3 +27,59 @@ jobs:
 
       - name: Run database-independent tests
         run: dotnet test src/ExpenseTracker.Tests/ExpenseTracker.Tests.csproj --configuration Release --no-build --filter "Category!=Integration" --verbosity normal
+
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Create disposable SQL password
+        run: echo "CI_SQL_PASSWORD=ExpenseTracker_CI_${GITHUB_RUN_ID}_A9!" >> "$GITHUB_ENV"
+
+      - name: Start disposable SQL Server
+        run: |
+          docker run --detach --name expense-sql-ci \
+            --publish 127.0.0.1:11433:1433 \
+            --env ACCEPT_EULA=Y \
+            --env MSSQL_SA_PASSWORD="$CI_SQL_PASSWORD" \
+            mcr.microsoft.com/mssql/server:2022-latest
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if docker exec --env SQLCMDPASSWORD="$CI_SQL_PASSWORD" expense-sql-ci \
+              /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q "SELECT 1" >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$ready" != true ]; then
+            docker logs expense-sql-ci
+            exit 1
+          fi
+
+          docker cp data/init.sql expense-sql-ci:/tmp/init.sql
+          docker exec --env SQLCMDPASSWORD="$CI_SQL_PASSWORD" expense-sql-ci \
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -i /tmp/init.sql
+
+      - name: Run repository integration tests
+        run: |
+          export EXPENSE_TEST_SQL_PORT=11433
+          export SQL_CONN="Server=127.0.0.1,11433;Database=ExpenseDb;User ID=sa;Password=$CI_SQL_PASSWORD;Encrypt=False;TrustServerCertificate=True"
+          dotnet test src/ExpenseTracker.Tests/ExpenseTracker.Tests.csproj --configuration Release --filter "Category=Integration" --verbosity normal
+
+      - name: Remove disposable SQL Server
+        if: always()
+        run: |
+          if docker container inspect expense-sql-ci >/dev/null 2>&1; then
+            docker rm --force expense-sql-ci
+          fi

@@ -15,7 +15,7 @@ Run commands from the repository root (the directory containing `ExpenseTracker.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-unit-tests.ps1
 ```
 
-These tests cover database-independent validation and repository checks. The script filters out tests tagged `Category=Integration`, so it cannot accidentally connect to SQL Server.
+These tests cover database-independent rules in `ExpenseTracker.Core`. The script filters out tests tagged `Category=Integration`, so it cannot accidentally connect to SQL Server.
 
 ## Integration tests
 
@@ -25,7 +25,7 @@ Use a disposable local Docker database only:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1
 ```
 
-The script securely prompts for the local SA password, starts SQL Server without force-recreating the container, and initializes `ExpenseDb` only when it does not exist. The integration test is tagged `Category=Integration`, rejects non-local connection targets, inserts category/expense data inside a transaction, and rolls it back. Do not use it for shared or production data.
+The script securely prompts for the local SA password, starts SQL Server without force-recreating the container, and initializes `ExpenseDb` only when it does not exist. Integration tests are tagged `Category=Integration`, reject non-local connection targets, and use uniquely named test data with cleanup. Do not use them for shared or production data.
 
 For a separately created disposable SQL Server on another loopback port, set `SQL_CONN` to that instance and pass its port. The test runner then validates that the target is `ExpenseDb` on `localhost` or `127.0.0.1` at exactly that port and skips the repository's persistent Docker setup:
 
@@ -80,6 +80,6 @@ This starts Docker, initializes the local database only if missing, creates/veri
 
 ## CI boundary
 
-`.github/workflows/dotnet.yml` restores, builds, and runs database-independent tests on Windows. Integration tests require an isolated SQL Server instance and UI tests require an interactive desktop, so they are deliberately manual.
+`.github/workflows/dotnet.yml` restores/builds the Windows solution and runs unit tests on Windows. A separate Ubuntu job starts an ephemeral SQL Server container, initializes it from `data/init.sql`, and runs integration tests against loopback port 11433; the container is removed whether tests pass or fail. UI automation still requires an interactive Windows desktop and remains local/manual.
 
 The desktop client uses a local `ExpenseApp` SQL login restricted to database reader/writer roles. Setup protects its randomly generated password with Windows DPAPI for the current user. When `SQL_CONN` is configured but unavailable, startup retries twice with a short timeout before showing a database-unavailable message. Do not reuse this architecture for a shared or production database: a desktop client can still inspect its connection and read/write all rows, and SQL Server is intended to be bound to loopback for local demonstration.

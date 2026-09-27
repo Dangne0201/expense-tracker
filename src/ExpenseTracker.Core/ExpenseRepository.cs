@@ -1,7 +1,7 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
 
-namespace ExpenseTracker.WinForms;
+namespace ExpenseTracker.Core;
 
 public sealed class ExpenseRepository
 {
@@ -36,19 +36,46 @@ public sealed class ExpenseRepository
         command.ExecuteNonQuery();
     }
 
-    public DataTable GetExpenses()
+    public DataTable GetExpenses(DateTime? startDate = null, DateTime? endDate = null, int? categoryId = null)
     {
         using var connection = new SqlConnection(_connectionString);
         using var command = new SqlCommand(
             @"SELECT e.Id, e.Amount, e.Date, e.Note, e.CategoryId, c.Name AS CategoryName
 FROM Expenses e
 JOIN Categories c ON e.CategoryId = c.Id
-ORDER BY e.Id ASC",
+WHERE (@startDate IS NULL OR e.Date >= @startDate)
+  AND (@endExclusive IS NULL OR e.Date < @endExclusive)
+  AND (@categoryId IS NULL OR e.CategoryId = @categoryId)
+ORDER BY e.Date DESC, e.Id DESC",
             connection);
+        command.Parameters.Add("@startDate", SqlDbType.DateTime2).Value =
+            startDate?.Date ?? (object)DBNull.Value;
+        command.Parameters.Add("@endExclusive", SqlDbType.DateTime2).Value =
+            endDate?.Date.AddDays(1) ?? (object)DBNull.Value;
+        command.Parameters.Add("@categoryId", SqlDbType.Int).Value =
+            categoryId ?? (object)DBNull.Value;
         var table = new DataTable();
         using var adapter = new SqlDataAdapter(command);
         adapter.Fill(table);
         return table;
+    }
+
+    public decimal GetMonthlyTotal(DateTime month, int? categoryId = null)
+    {
+        var monthStart = new DateTime(month.Year, month.Month, 1);
+        using var connection = new SqlConnection(_connectionString);
+        using var command = new SqlCommand(
+            @"SELECT COALESCE(SUM(Amount), 0)
+FROM Expenses
+WHERE Date >= @monthStart AND Date < @nextMonth
+  AND (@categoryId IS NULL OR CategoryId = @categoryId)",
+            connection);
+        command.Parameters.Add("@monthStart", SqlDbType.DateTime2).Value = monthStart;
+        command.Parameters.Add("@nextMonth", SqlDbType.DateTime2).Value = monthStart.AddMonths(1);
+        command.Parameters.Add("@categoryId", SqlDbType.Int).Value =
+            categoryId ?? (object)DBNull.Value;
+        connection.Open();
+        return Convert.ToDecimal(command.ExecuteScalar());
     }
 
     public void AddExpense(decimal amount, DateTime date, string note, int categoryId)
@@ -57,14 +84,7 @@ ORDER BY e.Id ASC",
         using var command = new SqlCommand(
             "INSERT INTO Expenses (Amount, Date, Note, CategoryId) VALUES (@amount, @date, @note, @categoryId)",
             connection);
-        var amountParameter = command.Parameters.Add("@amount", SqlDbType.Decimal);
-        amountParameter.Precision = 18;
-        amountParameter.Scale = 2;
-        amountParameter.Value = amount;
-        command.Parameters.Add("@date", SqlDbType.DateTime2).Value = date;
-        command.Parameters.Add("@note", SqlDbType.NVarChar, -1).Value =
-            string.IsNullOrEmpty(note) ? DBNull.Value : note;
-        command.Parameters.Add("@categoryId", SqlDbType.Int).Value = categoryId;
+        AddExpenseParameters(command, amount, date, note, categoryId);
         connection.Open();
         command.ExecuteNonQuery();
     }
@@ -77,14 +97,7 @@ ORDER BY e.Id ASC",
 SET Amount = @amount, Date = @date, Note = @note, CategoryId = @categoryId
 WHERE Id = @id",
             connection);
-        var amountParameter = command.Parameters.Add("@amount", SqlDbType.Decimal);
-        amountParameter.Precision = 18;
-        amountParameter.Scale = 2;
-        amountParameter.Value = amount;
-        command.Parameters.Add("@date", SqlDbType.DateTime2).Value = date;
-        command.Parameters.Add("@note", SqlDbType.NVarChar, -1).Value =
-            string.IsNullOrEmpty(note) ? DBNull.Value : note;
-        command.Parameters.Add("@categoryId", SqlDbType.Int).Value = categoryId;
+        AddExpenseParameters(command, amount, date, note, categoryId);
         command.Parameters.Add("@id", SqlDbType.Int).Value = id;
         connection.Open();
         command.ExecuteNonQuery();
@@ -99,5 +112,22 @@ WHERE Id = @id",
         command.Parameters.Add("@id", SqlDbType.Int).Value = id;
         connection.Open();
         return command.ExecuteNonQuery();
+    }
+
+    private static void AddExpenseParameters(
+        SqlCommand command,
+        decimal amount,
+        DateTime date,
+        string note,
+        int categoryId)
+    {
+        var amountParameter = command.Parameters.Add("@amount", SqlDbType.Decimal);
+        amountParameter.Precision = 18;
+        amountParameter.Scale = 2;
+        amountParameter.Value = amount;
+        command.Parameters.Add("@date", SqlDbType.DateTime2).Value = date;
+        command.Parameters.Add("@note", SqlDbType.NVarChar, -1).Value =
+            string.IsNullOrEmpty(note) ? DBNull.Value : note;
+        command.Parameters.Add("@categoryId", SqlDbType.Int).Value = categoryId;
     }
 }

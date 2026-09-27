@@ -1,5 +1,5 @@
 using System.Globalization;
-using ExpenseTracker.WinForms;
+using ExpenseTracker.Core;
 using Xunit;
 
 namespace ExpenseTracker.Tests;
@@ -52,6 +52,46 @@ public class ExpenseValidationTests
     }
 
     [Theory]
+    [InlineData("en-US", "1,234.56", "1234.56")]
+    [InlineData("vi-VN", "1.234,56", "1234.56")]
+    public void TryParseAmount_supports_group_and_decimal_separators_for_culture(
+        string cultureName,
+        string input,
+        string expected)
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+            Assert.True(ExpenseValidation.TryParseAmount(input, out var amount));
+            Assert.Equal(decimal.Parse(expected, CultureInfo.InvariantCulture), amount);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Theory]
+    [InlineData("9999999999999999.99", true)]
+    [InlineData("10000000000000000.00", false)]
+    [InlineData("0.01", true)]
+    [InlineData("0.001", false)]
+    public void TryParseAmount_checks_decimal_18_2_boundaries(string input, bool expected)
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+            Assert.Equal(expected, ExpenseValidation.TryParseAmount(input, out _));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("0")]
     [InlineData("-1")]
@@ -67,6 +107,15 @@ public class ExpenseValidationTests
     public void CategoryName_rejects_names_longer_than_schema()
     {
         Assert.False(ExpenseValidation.IsValidCategoryName(new string('x', 201)));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void CategoryName_rejects_empty_names(string? name)
+    {
+        Assert.False(ExpenseValidation.IsValidCategoryName(name!));
     }
 
     [Theory]
