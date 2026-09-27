@@ -3,7 +3,7 @@ using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.Core;
 
-public sealed class ExpenseRepository
+public sealed class ExpenseRepository : IExpenseRepository
 {
     private readonly string _connectionString;
 

@@ -22,6 +22,7 @@ namespace ExpenseTracker.WinForms
         // Active connection string. This is chosen once during startup and reused for all CRUD actions.
         private string _conn;
         private ExpenseRepository _repository;
+        private ExpenseOverviewService _expenseOverviewService;
 
         private const string LocalDbConnectionString =
             @"Server=(localdb)\MSSQLLocalDB;Database=ExpenseDb;Trusted_Connection=True;Connect Timeout=3;";
@@ -70,6 +71,7 @@ namespace ExpenseTracker.WinForms
             // Resolve DB connectivity before building the form; the rest of the UI depends on it.
             EnsureDatabaseAvailable();
             _repository = new ExpenseRepository(_conn);
+            _expenseOverviewService = new ExpenseOverviewService(_repository);
             InitializeComponents();
             Shown += async (s, e) =>
             {
@@ -475,7 +477,7 @@ namespace ExpenseTracker.WinForms
                     return;
                 }
 
-                try { StartLocalDbInstance(); } catch { }
+                StartLocalDbInstance();
 
                 if (TryOpenConnection(attachConn))
                 {
@@ -484,7 +486,7 @@ namespace ExpenseTracker.WinForms
                 }
             }
 
-            try { StartLocalDbInstance(); } catch { }
+            StartLocalDbInstance();
             if (TryOpenConnection(LocalDbConnectionString))
             {
                 _conn = LocalDbConnectionString;
@@ -538,9 +540,6 @@ namespace ExpenseTracker.WinForms
             return builder.ConnectionString;
         }
 
-        /// <summary>
-        /// Opens the connection and logs failure details to a startup.log file for troubleshooting.
-        /// </summary>
         private bool TryOpenConnection(string connStr)
         {
             try
@@ -550,42 +549,10 @@ namespace ExpenseTracker.WinForms
                 c.Close();
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is SqlException or InvalidOperationException or ArgumentException)
             {
-                try
-                {
-                    var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-                    if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
-
-                    var logFile = Path.Combine(logDir, "startup.log");
-                    var errorType = ex.GetType().Name;
-                    var sqlError = ex is SqlException sqlException
-                        ? $"; SqlError={sqlException.Number}"
-                        : string.Empty;
-                    var line = $"[{DateTime.UtcNow:O}] TryOpenConnection failed. ErrorType={errorType}{sqlError}{Environment.NewLine}";
-                    File.AppendAllText(logFile, line);
-                }
-                catch
-                {
-                    // Best-effort logging only; do not let diagnostics break startup.
-                }
-
+                ApplicationDiagnostics.LogFailure("Database connection probe", ex);
                 return false;
-            }
-        }
-
-        private static string SanitizeConnectionString(string conn)
-        {
-            if (string.IsNullOrEmpty(conn)) return conn;
-            try
-            {
-                // Strip passwords from logs to avoid leaking sensitive information.
-                var regex = new System.Text.RegularExpressions.Regex("(?i)(Password=)[^;]+;?");
-                return regex.Replace(conn, "Password=******;");
-            }
-            catch
-            {
-                return "<could-not-sanitize>";
             }
         }
 
@@ -603,14 +570,38 @@ namespace ExpenseTracker.WinForms
                 };
 
                 using var p = Process.Start(psi);
-                if (p != null)
+                if (p == null)
                 {
-                    p.WaitForExit(5000);
+                    ApplicationDiagnostics.LogFailure(
+                        "Starting LocalDB",
+                        new InvalidOperationException("The LocalDB startup process could not be created."));
+                    return;
+                }
+
+                if (!p.WaitForExit(5000))
+                {
+                    ApplicationDiagnostics.LogFailure(
+                        "Starting LocalDB",
+                        new TimeoutException("The LocalDB startup process did not finish in time."));
+                }
+                else if (p.ExitCode != 0)
+                {
+                    ApplicationDiagnostics.LogFailure(
+                        "Starting LocalDB",
+                        new InvalidOperationException("The LocalDB startup process returned a failure code."));
                 }
             }
-            catch
+            catch (System.ComponentModel.Win32Exception ex)
             {
-                // Ignore startup failures here; the connection retry loop will surface the real issue.
+                ApplicationDiagnostics.LogFailure("Starting LocalDB", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                ApplicationDiagnostics.LogFailure("Starting LocalDB", ex);
+            }
+            catch (IOException ex)
+            {
+                ApplicationDiagnostics.LogFailure("Starting LocalDB", ex);
             }
         }
 
@@ -724,20 +715,18 @@ namespace ExpenseTracker.WinForms
             try
             {
                 var filter = new ExpenseFilter(startDate, endDate, categoryId);
-                var expensesTask = _repository.GetExpensesAsync(filter, loadCancellation.Token);
-                var monthlyTotalTask = _repository.GetMonthlyTotalAsync(
+                var overview = await _expenseOverviewService.LoadAsync(
+                    filter,
                     summaryMonth,
-                    categoryId,
                     loadCancellation.Token);
-                await Task.WhenAll(expensesTask, monthlyTotalTask);
 
                 if (IsDisposed || requestVersion != Volatile.Read(ref _expenseLoadVersion))
                 {
                     return;
                 }
 
-                var expenses = await expensesTask;
-                var monthlyTotal = await monthlyTotalTask;
+                var expenses = overview.Expenses;
+                var monthlyTotal = overview.MonthlyTotal;
                 _visibleExpenses = expenses;
                 var totalAmount = ExpenseSummary.CalculateTotal(expenses.Select(expense => expense.Amount));
                 var gridRows = expenses.Select(expense => new ExpenseGridRow(
@@ -854,9 +843,7 @@ namespace ExpenseTracker.WinForms
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
-                Trace.TraceError(
-                    "CSV export failed. ExceptionType={0}",
-                    ex.GetType().Name);
+                ApplicationDiagnostics.LogFailure("CSV export", ex);
                 MessageBox.Show(
                     "Could not export the CSV file. Check the destination and your write permissions.",
                     "Export failed",
@@ -965,18 +952,12 @@ namespace ExpenseTracker.WinForms
 
         private static void ShowDatabaseError(string operation, Exception exception)
         {
-            var detail = exception is SqlException sqlException
-                ? $"SQL error {sqlException.Number}"
-                : exception.GetType().Name;
-            Trace.TraceError(
-                "{0} failed. ExceptionType={1}; SqlError={2}",
-                operation,
-                exception.GetType().Name,
-                exception is SqlException databaseException
-                    ? databaseException.Number.ToString(CultureInfo.InvariantCulture)
-                    : "none");
+            ApplicationDiagnostics.LogFailure(operation, exception);
+            var sqlErrorNumber = exception is SqlException sqlException
+                ? sqlException.Number
+                : (int?)null;
             MessageBox.Show(
-                $"{operation} failed ({detail}). Check that the database is available and try again.",
+                DatabaseFailureMessages.ForOperation(operation, sqlErrorNumber),
                 "Database error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);

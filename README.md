@@ -72,11 +72,18 @@ flowchart LR
     Init[data/init.sql] --> DB
 ```
 
-`MainForm` owns layout, input binding, and user-facing status. The platform-neutral `ExpenseTracker.Core` project contains typed category/expense/filter models, amount/category validation, CSV serialization, monthly summaries, and asynchronous `ExpenseRepository` methods with parameterized SQL and explicit SQL types. `data/init.sql` creates the schema, adds starter categories when needed, and tracks additive migrations.
+`MainForm` owns layout, input binding, and user-facing status. The platform-neutral `ExpenseTracker.Core` project contains typed category/expense/filter models, amount/category validation, `ExpenseOverviewService` query orchestration, CSV serialization, monthly summaries, and asynchronous `ExpenseRepository` methods with parameterized SQL and explicit SQL types. `data/init.sql` creates the schema, adds starter categories when needed, and tracks additive migrations.
 
 The CSV export uses invariant decimal/date formats, quotes CSV special characters, and prefixes formula-leading fields to reduce spreadsheet formula injection risk. Grid dates are inclusive; monthly totals deliberately ignore the grid's date range while honoring the selected category.
 
 The form resizes to the available screen area. The screenshot above was captured from the running WinForms app against an isolated, disposable SQL Server database; its sample expenses were entered through the UI test flow.
+
+### Engineering decisions
+
+- **WinForms + SQL Server** keeps the project focused on native Windows desktop development and relational data handling. Docker Compose makes the database repeatable for local setup without requiring SQL Server to be installed directly on the host.
+- **Core/repository separation** keeps validation, query orchestration, and SQL access outside the form where those behaviors can be tested independently. The form still owns layout and interaction orchestration; this is a small app, so it does not introduce a UI framework or a broad MVVM rewrite.
+- **Direct SQL from the desktop client** is an intentional single-user demo trade-off, not a production security boundary. A desktop executable can be inspected and its local SQL permissions can be reused. Supporting multiple users would require a trusted server-side API, authentication, and ownership checks for every operation.
+- **Persistent database data is preserved by setup and migrations.** Unsafe legacy data stops migration for deliberate manual resolution instead of being silently merged or deleted.
 
 ## Run again
 
@@ -106,7 +113,7 @@ Download the current [Expense Tracker v0.3.10 Windows x64 release](https://githu
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.11"
 ```
 
-The generated ZIP is ignored by Git because it is a large build artifact. It includes `BUILD-INFO.txt` with the source commit and tracked changes present at package time. The bundle prompts for a local SQL Server password, creates the restricted `ExpenseApp` login, and contains no app/database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after the isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass.
+The generated ZIP is ignored by Git because it is a large build artifact. Release creation refuses a dirty worktree and includes the full source commit in `BUILD-INFO.txt`, so the bundle maps to one committed source state. It prints a SHA-256 checksum after packaging; record that value in the release notes and verify it after download. The bundle prompts for a local SQL Server password, creates the restricted `ExpenseApp` login, and contains no app/database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass and CI is green for that source commit.
 
 The currently published `v0.3.10` bundle was built from source commit `ca858d1`. Its SHA-256 is `EB718C9D56F1F59BC089273360A7176BCED23F06D57A10D8B19BD64A2C8EF4F6`. Build a new version after source changes before distributing them as a downloadable release.
 
@@ -121,7 +128,8 @@ The currently published `v0.3.10` bundle was built from source commit `ca858d1`.
 
 ## Structure
 
-- `src/ExpenseTracker.WinForms`: WinForms UI, validation, and SQL repository.
+- `src/ExpenseTracker.WinForms`: WinForms UI and user-facing orchestration.
+- `src/ExpenseTracker.Core`: typed models, validation, query orchestration, CSV export, and SQL repository.
 - `src/ExpenseTracker.Tests`: validation, repository checks, and opt-in integration tests.
 - `src/ExpenseTracker.UiTests`: interactive FlaUI launch and CRUD/edit/cancel/restart tests.
 - `data/init.sql`: database schema and safe starter categories.
@@ -139,6 +147,8 @@ The currently published `v0.3.10` bundle was built from source commit `ca858d1`.
 - The app supports create/read/update/delete for expenses and create/read for categories; it has no category edit/delete or reporting dashboard.
 - Setup uses the local SQL Server SA credential only to provision the database and restricted `ExpenseApp` login. The app uses `ExpenseApp`, not the SA account. This local credential model is still not a production security boundary.
 - The screenshot is authentic application output from a disposable demo database; no screen recording is included.
+- UI automation requires an interactive Windows desktop and is not run by GitHub-hosted CI. SQL integration tests run separately against an ephemeral SQL Server container.
+- Runtime diagnostic logs are written to `%LOCALAPPDATA%\ExpenseTracker\logs\application.log`; they record operation, exception type, and SQL error number, not the connection string or password.
 
 ## Repository hygiene
 

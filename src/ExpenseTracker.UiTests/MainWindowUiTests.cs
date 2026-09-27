@@ -36,17 +36,28 @@ namespace ExpenseTracker.UiTests
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetWindowRect(IntPtr windowHandle, out WindowRectangle rectangle);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetWindowPos(
+            IntPtr windowHandle,
+            IntPtr insertAfter,
+            int x,
+            int y,
+            int width,
+            int height,
+            uint flags);
     }
 
     [TestFixture]
     public class MainWindowUiTests
     {
-        private string? _categoryNameToCleanUp;
+        private readonly List<string> _categoryNamesToCleanUp = new();
 
         [TearDown]
         public void CleanUpUiTestCategory()
         {
-            if (string.IsNullOrWhiteSpace(_categoryNameToCleanUp))
+            if (_categoryNamesToCleanUp.Count == 0)
             {
                 return;
             }
@@ -58,17 +69,20 @@ namespace ExpenseTracker.UiTests
             using var connection = new SqlConnection(connectionString);
             connection.Open();
             using var transaction = connection.BeginTransaction();
-            using var command = new SqlCommand(
-                @"DELETE FROM Expenses
+            foreach (var categoryName in _categoryNamesToCleanUp)
+            {
+                using var command = new SqlCommand(
+                    @"DELETE FROM Expenses
 WHERE CategoryId IN (SELECT Id FROM Categories WHERE Name = @name);
 DELETE FROM Categories WHERE Name = @name;",
-                connection,
-                transaction);
-            command.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 200).Value =
-                _categoryNameToCleanUp;
-            command.ExecuteNonQuery();
+                    connection,
+                    transaction);
+                command.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 200).Value = categoryName;
+                command.ExecuteNonQuery();
+            }
+
             transaction.Commit();
-            _categoryNameToCleanUp = null;
+            _categoryNamesToCleanUp.Clear();
         }
 
         [Test]
@@ -115,8 +129,9 @@ DELETE FROM Categories WHERE Name = @name;",
             Assert.That(File.Exists(exe), Is.True, $"Exe not found at {exe}. Build the WinForms project before running UI tests.");
 
             var categoryName = "UiTest-" + Guid.NewGuid().ToString("N")[..8];
-            _categoryNameToCleanUp = categoryName;
+            _categoryNamesToCleanUp.Add(categoryName);
             var note = "UiExpense-" + Guid.NewGuid().ToString("N")[..8];
+            var baselineNote = note + "-baseline";
             var editedNote = note + "-edited";
 
             using (var app = FlaUIApplication.Launch(exe))
@@ -127,10 +142,28 @@ DELETE FROM Categories WHERE Name = @name;",
                     var main = app.GetMainWindow(automation, TimeSpan.FromSeconds(20));
                     Assert.That(main, Is.Not.Null, "Main window should appear before CRUD automation");
                     Assert.That(Find(main!, "btnExportExpenses").Name, Does.Contain("Export"));
+                    Assert.That(Find(main!, "txtAmount").Name, Is.EqualTo("Expense amount"));
+                    Assert.That(Find(main!, "dtpFilterFrom").Name, Is.EqualTo("Filter expenses from date"));
+                    Assert.That(Find(main!, "btnClearFilters").Name, Is.EqualTo("Clear expense filters"));
+                    var windowHandle = (IntPtr)main!.Properties.NativeWindowHandle.Value;
+                    Assert.That(
+                        NativeMethods.SetWindowPos(windowHandle, IntPtr.Zero, 20, 20, 800, 600, 0x0004 | 0x0010),
+                        Is.True,
+                        "The form should resize to a representative narrow desktop window.");
+                    System.Threading.Thread.Sleep(250);
+                    var narrowWindowBounds = Rectangle.Round(main!.BoundingRectangle);
+                    foreach (var automationId in new[] { "dgvExpenses", "btnAddExpense", "txtNote" })
+                    {
+                        var controlBounds = Rectangle.Round(Find(main!, automationId).BoundingRectangle);
+                        Assert.That(controlBounds.Width, Is.GreaterThan(0),
+                            $"Control '{automationId}' should remain visible in the narrow layout.");
+                        Assert.That(Rectangle.Intersect(narrowWindowBounds, controlBounds), Is.EqualTo(controlBounds),
+                            $"Control '{automationId}' should remain within the window after resizing.");
+                    }
                     main!.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
                     System.Threading.Thread.Sleep(250);
-                    Assert.That(Find(main, "dgvExpenses").BoundingRectangle.Width, Is.GreaterThan(0));
-                    main.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Normal);
+                    Assert.That(Find(main!, "dgvExpenses").BoundingRectangle.Width, Is.GreaterThan(0));
+                    main!.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Normal);
                     System.Threading.Thread.Sleep(250);
 
                     var categoryInput = Find(main!, "txtNewCategory").AsTextBox();
@@ -138,7 +171,34 @@ DELETE FROM Categories WHERE Name = @name;",
                     Find(main!, "btnAddCategory").AsButton().Invoke();
 
                     SelectCategoryWhenAvailable(Find(main!, "lstCategories").AsListBox(), categoryName);
+                    Find(main!, "txtAmount").AsTextBox().Text = "5.00";
+                    Find(main!, "dtpDate").AsDateTimePicker().SelectedDate = DateTime.Today.AddDays(-1);
+                    Find(main!, "txtNote").AsTextBox().Text = baselineNote;
+                    Find(main!, "btnAddExpense").AsButton().Invoke();
+                    Assert.That(WaitForRow(Find(main!, "dgvExpenses").AsDataGridView(), baselineNote, true), Is.Not.Null);
+
+                    var futureDate = new DateTime(2027, 1, 1);
+                    Find(main!, "dtpFilterFrom").AsDateTimePicker().SelectedDate = futureDate;
+                    Find(main!, "dtpFilterTo").AsDateTimePicker().SelectedDate = futureDate;
+                    Find(main!, "btnApplyFilters").AsButton().Invoke();
+                    var emptyStatus = Find(main!, "lblExpenseStatus");
+                    Assert.That(
+                        WaitForNameContains(emptyStatus, "No expenses match"),
+                        Is.True,
+                        $"Filtering a date with no expenses should show an explicit empty state. Current status: {emptyStatus.Name}");
+                    Assert.That(Find(main!, "dgvExpenses").AsDataGridView().Rows.Count, Is.EqualTo(1),
+                        "An empty result should retain only the display total row.");
+                    Find(main!, "btnClearFilters").AsButton().Invoke();
+                    Assert.That(
+                        WaitForNameContains(Find(main!, "lblExpenseStatus"), "Showing"),
+                        Is.True,
+                        "Clearing filters should restore the unfiltered result state.");
+                    Assert.That(Find(main!, "dgvExpenses").AsDataGridView().Rows.Count, Is.EqualTo(2),
+                        "Clearing the empty filter should restore the baseline expense and total row.");
+
+                    SelectCategoryWhenAvailable(Find(main!, "lstCategories").AsListBox(), categoryName);
                     Find(main!, "txtAmount").AsTextBox().Text = "12.50";
+                    Find(main!, "dtpDate").AsDateTimePicker().SelectedDate = DateTime.Today;
                     Find(main!, "txtNote").AsTextBox().Text = note;
                     Find(main!, "btnAddExpense").AsButton().Invoke();
 
@@ -146,13 +206,19 @@ DELETE FROM Categories WHERE Name = @name;",
                     var addedRow = WaitForRow(grid, note, shouldExist: true);
                     Assert.That(addedRow, Is.Not.Null, "The added expense should appear in the grid. " +
                         $"Amount input={Find(main!, "txtAmount").AsTextBox().Text}; note input={Find(main!, "txtNote").AsTextBox().Text}");
-                    Assert.That(grid.Rows.Count, Is.EqualTo(2), "The grid should show one expense and one total row");
+                    Assert.That(grid.Rows.Count, Is.EqualTo(3), "The grid should show two expenses and one total row");
                     AssertGridRowFitsViewport(grid, addedRow!, (IntPtr)main!.Properties.NativeWindowHandle.Value);
-                    var categoryFilter = Find(main!, "cboFilterCategory").AsComboBox();
-                    categoryFilter.Select(categoryName);
+                    Find(main!, "dtpFilterFrom").AsDateTimePicker().SelectedDate = DateTime.Today;
+                    Find(main!, "dtpFilterTo").AsDateTimePicker().SelectedDate = DateTime.Today;
                     Find(main!, "btnApplyFilters").AsButton().Invoke();
+                    Assert.That(
+                        WaitForNameContains(Find(main!, "lblExpenseStatus"), "Showing 1 expense"),
+                        Is.True,
+                        "Applying today's date filter should finish with exactly one matching expense.");
                     Assert.That(WaitForRow(grid, note, shouldExist: true), Is.Not.Null,
-                        "Filtering by the expense category should retain its matching row");
+                        "Filtering by today's date should retain the matching expense.");
+                    Assert.That(grid.Rows.Count, Is.EqualTo(2),
+                        "The date filter should exclude the baseline expense from yesterday.");
                     Assert.That(Find(main!, "lblMonthTotal").Name, Does.Contain("Month total"));
                     Assert.That(Find(main!, "lblExpenseStatus").Name, Does.Contain("Showing 1 expense"));
                     var exportPath = Path.Combine(
@@ -237,7 +303,7 @@ DELETE FROM Categories WHERE Name = @name;",
                     updatedRow ??= WaitForRow(grid, editedNote, shouldExist: true);
                     Assert.That(updatedRow, Is.Not.Null, "Saving edits should update the row shown in the grid");
                     Assert.That(FindRow(grid, note), Is.Null, "The old note should no longer be present after edit");
-                    Assert.That(grid.Rows.Count, Is.EqualTo(2), "The displayed total should include the edited expense only once");
+                    Assert.That(grid.Rows.Count, Is.EqualTo(3), "Editing should not duplicate either expense or the total row");
 
                 }
                 finally
@@ -257,13 +323,13 @@ DELETE FROM Categories WHERE Name = @name;",
                     var restartedGrid = Find(main!, "dgvExpenses").AsDataGridView();
                     var persistedRow = FindRow(restartedGrid, editedNote);
                     Assert.That(persistedRow, Is.Not.Null, "The saved edit and category should persist after restart");
-                    Assert.That(restartedGrid.Rows.Count, Is.EqualTo(2), "The persisted expense should still contribute to the total row");
+                    Assert.That(restartedGrid.Rows.Count, Is.EqualTo(3), "Both persisted expenses should contribute to one total row");
                     FindNoteCell(persistedRow!, editedNote).Click();
                     Find(main!, "btnDeleteExpense").AsButton().Click();
                     ConfirmDeleteDialog(automation, main!);
                     WaitForRow(restartedGrid, editedNote, shouldExist: false);
                     Assert.That(FindRow(restartedGrid, editedNote), Is.Null, "Deleting after restart should remove the expense");
-                    Assert.That(restartedGrid.Rows.Count, Is.EqualTo(1), "Deleting the only expense should leave the zero-total row");
+                    Assert.That(restartedGrid.Rows.Count, Is.EqualTo(2), "Deleting the edited expense should leave the baseline expense and total row");
                     Assert.That(FindRow(restartedGrid, "TOTAL"), Is.Not.Null, "The total row should remain visible when there are no expenses");
                 }
                 finally
@@ -452,6 +518,23 @@ DELETE FROM Categories WHERE Name = @name;",
             while (timeout.Elapsed < TimeSpan.FromSeconds(5));
 
             return row;
+        }
+
+        private static bool WaitForNameContains(AutomationElement element, string expectedText)
+        {
+            var timeout = System.Diagnostics.Stopwatch.StartNew();
+            do
+            {
+                if (element.Name.Contains(expectedText, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                System.Threading.Thread.Sleep(100);
+            }
+            while (timeout.Elapsed < TimeSpan.FromSeconds(5));
+
+            return false;
         }
 
         private static void SelectCategoryWhenAvailable(

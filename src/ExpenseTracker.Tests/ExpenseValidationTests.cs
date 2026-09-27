@@ -163,4 +163,54 @@ public class ExpenseValidationTests
         Assert.Contains("'=HYPERLINK", csv);
         Assert.DoesNotContain("12,50", csv);
     }
+
+    [Fact]
+    public void CsvExport_preserves_unicode_text()
+    {
+        var expense = new Expense(
+            2,
+            8m,
+            new DateTime(2026, 9, 27),
+            "Cà phê ☕",
+            3,
+            "Ăn uống");
+        using var writer = new StringWriter(CultureInfo.InvariantCulture);
+
+        ExpenseCsvExporter.Write(writer, new[] { expense });
+
+        Assert.Contains("Cà phê ☕", writer.ToString());
+        Assert.Contains("Ăn uống", writer.ToString());
+    }
+
+    [Theory]
+    [InlineData(53, "unavailable")]
+    [InlineData(10061, "unavailable")]
+    [InlineData(2601, "unique")]
+    [InlineData(2627, "unique")]
+    [InlineData(547, "database rule")]
+    public void Database_error_messages_explain_expected_failure_categories(
+        int sqlErrorNumber,
+        string expectedText)
+    {
+        var message = DatabaseFailureMessages.ForOperation("Saving expense", sqlErrorNumber);
+
+        Assert.Contains(expectedText, message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("connection string", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Repository_reports_unavailable_loopback_sql_server_without_credentials()
+    {
+        var repository = new ExpenseRepository(
+            "Server=127.0.0.1,1;Database=ExpenseDb;Connect Timeout=1;Encrypt=False;TrustServerCertificate=True");
+
+        var exception = await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(
+            () => repository.GetCategoriesAsync());
+
+        Assert.Contains(
+            "database is unavailable",
+            DatabaseFailureMessages.ForOperation("Loading categories", exception.Number),
+            StringComparison.OrdinalIgnoreCase);
+    }
 }

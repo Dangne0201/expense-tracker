@@ -18,6 +18,13 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 if (Test-Path $archive) {
     throw "Release archive already exists and will not be overwritten: $archive. Choose a new version."
 }
+$worktreeStatus = & git -C $repoRoot status --porcelain=v1 --untracked-files=all
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to verify the Git worktree before creating a release."
+}
+if ($worktreeStatus) {
+    throw "Release bundles must be built from a clean, committed checkout. Commit or discard all tracked and untracked changes first."
+}
 New-Item $publishRoot -ItemType Directory -Force | Out-Null
 
 try {
@@ -33,20 +40,14 @@ try {
         throw "dotnet publish failed."
     }
 
-    $sourceCommit = & git -C $repoRoot rev-parse --short HEAD
+    $sourceCommit = & git -C $repoRoot rev-parse HEAD
     if ($LASTEXITCODE -ne 0) {
         throw "Unable to determine the source commit for the release bundle."
-    }
-    $sourceChanges = & git -C $repoRoot diff --name-only HEAD
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to determine the source changes included in the release bundle."
     }
     $buildInfo = @(
         "Version: $Version"
         "Runtime: $Runtime"
         "Source commit: $sourceCommit"
-        "Tracked source changes at build time:"
-        if ($sourceChanges) { $sourceChanges } else { "(none)" }
     )
     Set-Content -Path (Join-Path $stagingRoot "BUILD-INFO.txt") -Value $buildInfo -Encoding ASCII
 
@@ -113,6 +114,8 @@ The Docker volume is persistent. Do not remove it unless you intend to delete it
     Compress-Archive -Path (Join-Path $stagingRoot "*") -DestinationPath $stagedArchive -CompressionLevel Optimal
     Move-Item -Path $stagedArchive -Destination $archive
     Write-Host "Created $archive"
+    $checksum = (Get-FileHash -Path $archive -Algorithm SHA256).Hash
+    Write-Host "SHA-256: $checksum"
 }
 finally {
     if (Test-Path $stagingRoot) {

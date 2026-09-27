@@ -132,11 +132,11 @@ Dự án Expense Tracker có nền tảng tốt cho một ứng dụng học t�
 
 ## Trạng thái hiện tại cần đối chiếu khi review
 
-- `ExpenseTracker.Core` hiện có typed category/expense/filter models, asynchronous SQL repository methods, validation/summary helpers, và CSV serialization; `MainForm` vẫn giữ layout và orchestration, nên có thể tiếp tục tách view logic nếu app phát triển thêm.
+- `ExpenseTracker.Core` hiện có typed category/expense/filter models, `ExpenseOverviewService` cho truy vấn màn hình, asynchronous SQL repository methods, validation/summary helpers, và CSV serialization; `MainForm` vẫn giữ layout và event orchestration, nên có thể tiếp tục tách view logic nếu app phát triển thêm.
 - `data/init.sql` chạy lại an toàn và có migration có version; trên SQL Server 2019 đã kiểm tra nâng từ schema cũ, chạy script hai lần và giữ lại dữ liệu mẫu cũ. Duplicate/invalid legacy data sẽ chặn migration có chủ đích, không tự gộp dữ liệu.
-- Local verification gần nhất: Release build không warning/error, 25 unit tests, 4 repository integration tests và 2 UI tests pass; integration/UI chạy với SQL disposable.
-- GitHub Actions run [#8](https://github.com/Dangne0201/expense-tracker/actions/runs/36309807926) xanh cho commit `ca858d1` (Windows build/unit và Ubuntu SQL integration).
+- Local verification gần nhất cho working changes: Release build không warning/error, 33 unit tests, 5 repository integration tests và 2 UI tests pass; DB tests chạy trên SQL disposable. UI coverage gồm resize cửa sổ hẹp, accessible names, lọc theo ngày, empty state và clear-filter recovery.
+- GitHub Actions run [#10](https://github.com/Dangne0201/expense-tracker/actions/runs/36310319077) xanh cho commit `94e3941` (Windows build/format/unit và Ubuntu SQL integration); run này có trước working changes hiện tại. CI cần chạy lại sau khi commit; UI automation vẫn chạy local/manual.
 - Release public [v0.3.10](https://github.com/Dangne0201/expense-tracker/releases/tag/v0.3.10) được build từ `ca858d1`; ZIP và SHA-256 đã được kiểm tra.
-- Clean Windows profile/VM và DPAPI first-run/reuse vẫn cần xác minh độc lập; kết quả local trên cùng profile không thay thế bằng chứng đó.
+- Clean Windows profile/VM và DPAPI first-run/reuse vẫn cần xác minh độc lập; kết quả local trên cùng profile không thay thế bằng chứng đó. A temporary clean clone with the current diff and new source files passed build/unit tests without ignored local settings; this does not replace a clean Windows setup test.
 
 Khi review một commit mới, cập nhật phần trạng thái trên từ kết quả thực tế thay vì giữ số test, commit hoặc trạng thái release cũ.

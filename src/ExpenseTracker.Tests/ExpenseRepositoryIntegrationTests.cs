@@ -80,6 +80,49 @@ DELETE FROM Categories WHERE Name = @name;",
 
     [Fact]
     [Trait("Category", "Integration")]
+    public async Task Repository_round_trips_decimal_boundary_unicode_and_day_end()
+    {
+        var connectionString = DbIntegrationTests.GetLocalTestConnectionString();
+        var repository = new ExpenseRepository(connectionString);
+        var categoryName = "BoundaryTest-" + Guid.NewGuid().ToString("N")[..10];
+        var categoryId = 0;
+        var day = new DateTime(2024, 2, 29);
+        const decimal maxAmount = 9999999999999999.99m;
+
+        try
+        {
+            await repository.AddCategoryAsync(categoryName);
+            categoryId = (await repository.GetCategoriesAsync())
+                .Single(category => category.Name == categoryName).Id;
+            await repository.AddExpenseAsync(
+                maxAmount,
+                day.AddDays(1).AddTicks(-1),
+                "Cà phê ☕",
+                categoryId);
+
+            var expenses = await repository.GetExpensesAsync(new ExpenseFilter(day, day, categoryId));
+
+            var expense = Assert.Single(expenses);
+            Assert.Equal(maxAmount, expense.Amount);
+            Assert.Equal("Cà phê ☕", expense.Note);
+            Assert.Equal(day.AddDays(1).AddTicks(-1), expense.Date);
+        }
+        finally
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(
+                @"DELETE FROM Expenses
+WHERE CategoryId IN (SELECT Id FROM Categories WHERE Name = @name);
+DELETE FROM Categories WHERE Name = @name;",
+                connection);
+            command.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 200).Value = categoryName;
+            await command.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task Schema_migration_enforces_case_insensitive_unique_nonblank_category_names()
     {
         var connectionString = DbIntegrationTests.GetLocalTestConnectionString();

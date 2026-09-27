@@ -78,9 +78,11 @@ This starts Docker, reapplies the safe schema/migrations without removing existi
 - Confirm date filters are inclusive and monthly totals use the selected month/category regardless of the grid date range.
 - Confirm filter empty/error states offer a clear/retry path; **Load Expenses** retries a failed request.
 - Resize and maximize/restore the window; verify the grid and footer remain reachable, then exercise the form using keyboard navigation and Escape.
+- Check layout at 800x600 and maximized; when available, repeat at 100% and 150% Windows display scaling. Verify the grid/footer stay reachable, accessible names are meaningful, and Tab/Shift+Tab/Escape work without a mouse and keep focus visible.
 - Export filtered expenses; verify the CSV includes only matching expenses (not the TOTAL display row), uses invariant decimal/date values, safely quotes commas/quotes/newlines, and neutralizes formula-leading text.
 - Delete the new expense and confirm it disappears.
 - Stop SQL Server and confirm the app reports a connection problem.
+- Restart SQL Server after a failed load and use **Load Expenses** to confirm the app recovers without restarting.
 - Apply `data/init.sql` twice to a disposable database; both runs should succeed without duplicating starter categories or migration records.
 - Category names are trimmed by the UI, reject blank/space-padded values, and are unique ignoring case; a database-level duplicate must fail without exposing SQL details to the user.
 - A filter start and end on the same day includes expenses throughout that day; monthly totals use the selected month and category, independent of the grid date range.
@@ -91,4 +93,6 @@ This starts Docker, reapplies the safe schema/migrations without removing existi
 
 `.github/workflows/dotnet.yml` restores/builds the Windows solution and runs unit tests on Windows. A separate Ubuntu job starts an ephemeral SQL Server container, initializes it from `data/init.sql`, and runs integration tests against loopback port 11433; the container is removed whether tests pass or fail. UI automation still requires an interactive Windows desktop and remains local/manual.
 
-The desktop client uses a local `ExpenseApp` SQL login restricted to database reader/writer roles. Setup protects its randomly generated password with Windows DPAPI for the current user. When `SQL_CONN` is configured but unavailable, startup retries twice with a short timeout before showing a database-unavailable message. Do not reuse this architecture for a shared or production database: a desktop client can still inspect its connection and read/write all rows, and SQL Server is intended to be bound to loopback for local demonstration.
+The latest verified workflow is [run #10](https://github.com/Dangne0201/expense-tracker/actions/runs/36310319077) for commit `94e3941`; Windows build/format/unit tests and Ubuntu SQL integration both passed. The workflow does not run interactive UI automation.
+
+The desktop client uses a local `ExpenseApp` SQL login restricted to database reader/writer roles. Setup protects its randomly generated password with Windows DPAPI for the current user. When `SQL_CONN` is configured but unavailable, startup retries twice with a short timeout before showing a database-unavailable message. Runtime error logs go to `%LOCALAPPDATA%\ExpenseTracker\logs\application.log` and contain operation/type/SQL error number only, not connection strings or credentials. Do not reuse this architecture for a shared or production database: a desktop client can still inspect its connection and read/write all rows, and SQL Server is intended to be bound to loopback for local demonstration.
