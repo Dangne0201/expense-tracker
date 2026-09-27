@@ -25,6 +25,9 @@ jobs:
       - name: Build solution
         run: dotnet build ExpenseTracker.sln --configuration Release --no-restore
 
+      - name: Verify formatting
+        run: dotnet format ExpenseTracker.sln --verify-no-changes --no-restore
+
       - name: Run database-independent tests
         run: dotnet test src/ExpenseTracker.Tests/ExpenseTracker.Tests.csproj --configuration Release --no-build --filter "Category!=Integration" --verbosity normal
 
