@@ -1,4 +1,3 @@
-using System.Data;
 using ExpenseTracker.Core;
 using Microsoft.Data.SqlClient;
 
@@ -8,7 +7,7 @@ public class ExpenseRepositoryIntegrationTests
 {
     [Fact]
     [Trait("Category", "Integration")]
-    public void Repository_supports_crud_date_category_filters_and_monthly_totals()
+    public async Task Repository_supports_crud_date_category_filters_and_monthly_totals()
     {
         var connectionString = DbIntegrationTests.GetLocalTestConnectionString();
         var repository = new ExpenseRepository(connectionString);
@@ -17,71 +16,113 @@ public class ExpenseRepositoryIntegrationTests
 
         try
         {
-            repository.AddCategory(categoryName);
-            categoryId = FindCategoryId(repository.GetCategories(), categoryName);
-            Assert.Empty(repository.GetExpenses(categoryId: categoryId).AsEnumerable());
+            await repository.AddCategoryAsync(categoryName);
+            categoryId = (await repository.GetCategoriesAsync())
+                .Single(category => category.Name == categoryName).Id;
+            Assert.Empty(await repository.GetExpensesAsync(new ExpenseFilter(CategoryId: categoryId)));
 
-            var month = new DateTime(2026, 4, 1);
-            Assert.Equal(0m, repository.GetMonthlyTotal(month, categoryId));
-            repository.AddExpense(10.25m, month.AddDays(5), string.Empty, categoryId);
-            repository.AddExpense(5.25m, month.AddMonths(1), "next-month", categoryId);
+            var month = new DateTime(2024, 2, 1);
+            var leapDay = new DateTime(2024, 2, 29, 23, 59, 0);
+            Assert.Equal(0m, await repository.GetMonthlyTotalAsync(month, categoryId));
+            await repository.AddExpenseAsync(10.25m, leapDay, string.Empty, categoryId);
+            await repository.AddExpenseAsync(5.25m, month.AddMonths(1), "next-month", categoryId);
 
             var monthEnd = month.AddMonths(1).AddDays(-1);
-            var aprilExpenses = repository.GetExpenses(month, monthEnd, categoryId);
-            Assert.Single(aprilExpenses.AsEnumerable());
-            Assert.Equal(DBNull.Value, aprilExpenses.Rows[0]["Note"]);
-            Assert.Equal(10.25m, repository.GetMonthlyTotal(month, categoryId));
-            Assert.Equal(10.25m, repository.GetMonthlyTotal(month));
-            Assert.Equal(5.25m, repository.GetMonthlyTotal(month.AddMonths(1), categoryId));
+            var februaryExpenses = await repository.GetExpensesAsync(
+                new ExpenseFilter(month, monthEnd, categoryId));
+            Assert.Single(februaryExpenses);
+            Assert.Single(await repository.GetExpensesAsync(
+                new ExpenseFilter(leapDay.Date, leapDay.Date, categoryId)));
+            Assert.Null(februaryExpenses[0].Note);
+            Assert.Equal(10.25m, await repository.GetMonthlyTotalAsync(month, categoryId));
+            Assert.Equal(10.25m, await repository.GetMonthlyTotalAsync(month));
+            Assert.Equal(5.25m, await repository.GetMonthlyTotalAsync(month.AddMonths(1), categoryId));
             Assert.Equal("next-month",
-                repository.GetExpenses(month.AddMonths(1), month.AddMonths(1), categoryId).Rows[0]["Note"]);
+                (await repository.GetExpensesAsync(new ExpenseFilter(
+                    month.AddMonths(1), month.AddMonths(1), categoryId))).Single().Note);
 
-            var expenseId = Convert.ToInt32(aprilExpenses.Rows[0]["Id"]);
-            repository.UpdateExpense(expenseId, 22.75m, month.AddMonths(1).AddTicks(-1), "updated", categoryId);
-            Assert.Equal(22.75m, repository.GetMonthlyTotal(month, categoryId));
+            var expenseId = februaryExpenses[0].Id;
+            Assert.True(await repository.UpdateExpenseAsync(
+                expenseId, 22.75m, month.AddMonths(1).AddTicks(-1), "updated", categoryId));
+            Assert.Equal(22.75m, await repository.GetMonthlyTotalAsync(month, categoryId));
 
-            Assert.Equal(1, repository.DeleteExpense(expenseId));
-            Assert.Equal(0, repository.DeleteExpense(expenseId));
-            Assert.Empty(repository.GetExpenses(month, monthEnd, categoryId).AsEnumerable());
+            Assert.True(await repository.DeleteExpenseAsync(expenseId));
+            Assert.False(await repository.DeleteExpenseAsync(expenseId));
+            Assert.Empty(await repository.GetExpensesAsync(new ExpenseFilter(month, monthEnd, categoryId)));
         }
         finally
         {
-            using var connection = new SqlConnection(connectionString);
-            connection.Open();
-            using var transaction = connection.BeginTransaction();
-            using var command = new SqlCommand(
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+            await using var command = new SqlCommand(
                 @"DELETE FROM Expenses
 WHERE CategoryId IN (SELECT Id FROM Categories WHERE Name = @name);
 DELETE FROM Categories WHERE Name = @name;",
                 connection,
                 transaction);
-            command.Parameters.Add("@name", SqlDbType.NVarChar, 200).Value = categoryName;
-            command.ExecuteNonQuery();
-            transaction.Commit();
+            command.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 200).Value = categoryName;
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
         }
     }
 
     [Fact]
     [Trait("Category", "Integration")]
-    public void Repository_rejects_an_expense_with_a_missing_category()
+    public async Task Repository_rejects_an_expense_with_a_missing_category()
     {
         var repository = new ExpenseRepository(DbIntegrationTests.GetLocalTestConnectionString());
-        var exception = Assert.Throws<SqlException>(
-            () => repository.AddExpense(1m, DateTime.UtcNow, "invalid-category", int.MaxValue));
+        var exception = await Assert.ThrowsAsync<SqlException>(
+            () => repository.AddExpenseAsync(1m, DateTime.UtcNow, "invalid-category", int.MaxValue));
 
         Assert.Equal(547, exception.Number);
     }
 
-    private static int FindCategoryId(DataTable categories, string name)
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task Schema_migration_enforces_case_insensitive_unique_nonblank_category_names()
     {
-        foreach (DataRow category in categories.Rows)
-        {
-            if (string.Equals(category["Name"]?.ToString(), name, StringComparison.Ordinal))
-            {
-                return Convert.ToInt32(category["Id"]);
-            }
-        }
+        var connectionString = DbIntegrationTests.GetLocalTestConnectionString();
+        var repository = new ExpenseRepository(connectionString);
+        var categoryName = "UniqueCase-" + Guid.NewGuid().ToString("N")[..10];
 
-        throw new InvalidOperationException("The newly created test category was not returned by the repository.");
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using (var migrationCommand = new SqlCommand(
+                             "SELECT COUNT(*) FROM dbo.SchemaMigrations WHERE MigrationId = @migrationId",
+                             connection))
+            {
+                migrationCommand.Parameters.Add("@migrationId", System.Data.SqlDbType.NVarChar, 100).Value =
+                    "2026-09-data-integrity";
+                Assert.Equal(1, (int)(await migrationCommand.ExecuteScalarAsync())!);
+            }
+
+            await repository.AddCategoryAsync(categoryName);
+            var duplicate = await Assert.ThrowsAsync<SqlException>(
+                () => repository.AddCategoryAsync(categoryName.ToUpperInvariant()));
+            Assert.Contains(duplicate.Number, new[] { 2601, 2627 });
+
+            var blank = await Assert.ThrowsAsync<SqlException>(
+                () => repository.AddCategoryAsync("   "));
+            Assert.Equal(547, blank.Number);
+
+            var categoryId = (await repository.GetCategoriesAsync())
+                .Single(category => category.Name == categoryName).Id;
+            var nonPositiveAmount = await Assert.ThrowsAsync<SqlException>(
+                () => repository.AddExpenseAsync(-0.01m, DateTime.UtcNow, "invalid-amount", categoryId));
+            Assert.Equal(547, nonPositiveAmount.Number);
+        }
+        finally
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(
+                "DELETE FROM dbo.Categories WHERE Name = @name",
+                connection);
+            command.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 200).Value = categoryName;
+            await command.ExecuteNonQueryAsync();
+        }
     }
 }

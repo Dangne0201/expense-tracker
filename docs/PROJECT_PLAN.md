@@ -23,25 +23,32 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - A platform-neutral `ExpenseTracker.Core` project for validation, summaries, and the SQL repository, referenced by the WinForms UI.
 - Expense date-range/category filters, a monthly total, a clear-filters action, and visible loading/empty/error status.
 - Inline validation feedback, delete confirmation, keyboard mnemonics, and accessible names/descriptions for key controls.
-- An Ubuntu CI job that initializes an ephemeral SQL Server from the schema and runs repository integration tests.
+- Typed category/expense/filter models with asynchronous SQL repository operations and cancellation for superseded expense loads.
+- A tracked, idempotent database migration that enforces trimmed, nonblank, case-insensitively unique category names and positive expense amounts, and refuses unsafe legacy data.
+- CSV export of filtered expense rows (not the display total), with invariant values, CSV quoting, and formula-prefix neutralization.
+- Filter semantics documented: inclusive date range, monthly summary by month/category independent of grid dates, and Clear resetting all filters.
 
 ## Verification completed
 
 - Release solution build: passed with 0 warnings and 0 errors.
-- Unit tests: 22 passed, including culture-specific parsing and decimal-boundary cases.
-- UI tests: 2 passed against a disposable SQL Server; the extracted `v0.3.9` bundle executable also passed both UI tests.
-- Repository integration tests: 3 passed against a disposable SQL Server, covering CRUD, filtering, monthly totals, and foreign-key failures.
-- The `v0.3.9` bundle was rebuilt from the current source and its metadata and startup files were inspected. It is ignored by Git.
+- Unit tests: 25 passed, including culture-specific parsing, decimal boundaries, filter validation, and CSV output safety.
+- UI tests: 2 passed against a disposable SQL Server, covering add/edit/cancel/delete/restart, category filtering, CSV save/cancel/output, and responsive layout.
+- Repository integration tests: 4 passed against disposable SQL Server 2019; schema initialization passed twice on an existing legacy schema while retaining its category and expense row.
+- Migration failure tests against disposable SQL Server 2019 confirmed that duplicate, blank, and non-positive legacy data produce clear diagnostics, preserve existing rows, and roll back migration DDL.
+- The setup script completed twice against an isolated SQL Server 2019 Compose project; it preserved the disposable database, reused the DPAPI-protected credential, and configured the `ExpenseApp` login. The disposable container, volume, and credential file were removed afterward.
+- The `v0.3.9` bundle was built from commit `d5ddf32`; its metadata and startup files were inspected. It is ignored by Git and predates the current filters, migration, typed async repository, and CSV export.
 - The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
-- GitHub Actions `.NET` workflow for commit `d5ddf32` completed successfully.
+- GitHub Actions `.NET` workflow for commit `a1fc63c` completed successfully for Windows build/unit and Ubuntu disposable SQL integration.
 - The follow-up documentation commit `b562c76` also passed GitHub Actions; the disposable SQL connection examples in the testing guide were parsed and verified after correction.
-- The existing `expense-mssql` container was recreated with the loopback-only port binding; it is healthy and still uses the `expense_tracker_mssqldata` volume.
+- The existing `expense-mssql` container uses the loopback-only port binding; disposable QA did not alter its persistent volume.
 - GitHub Release `v0.3.9` was published with the verified Windows x64 bundle built from `d5ddf32`.
 
 ## Remaining proof before calling it ready to share
 
-- Repeat setup and review-bundle startup on a second clean Windows profile/VM; verify DPAPI credential creation/reuse there. Prior bundle setup and credential tests were run only on the current Windows profile.
-- Repeat the manual interview demo on a clean reviewer machine if useful.
+- Push the current source changes and confirm GitHub Actions succeeds on the resulting commit.
+- Publish a new release bundle only after that commit's CI is green; public `v0.3.9` predates the current filters, migration, typed async repository, and CSV export.
+- A clean Windows profile/VM test was deferred; the setup/DPAPI reuse check above ran on the current profile with isolated Docker data.
+- Databases with duplicate/invalid legacy values intentionally stop for manual resolution; setup does not merge or delete user data.
 
 ## Deliberate non-goals for this portfolio version
 
@@ -51,4 +58,4 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 
 ## Data safety
 
-The Docker SQL Server volume is persistent. Normal setup does not delete or recreate it, and database initialization is skipped when `ExpenseDb` already exists. Do not run `docker compose down -v` unless you explicitly intend to erase local database data.
+The Docker SQL Server volume is persistent. Normal setup does not delete or recreate it; the idempotent schema script preserves existing rows and blocks the category migration if duplicate/invalid legacy category names need manual resolution. Do not run `docker compose down -v` unless you explicitly intend to erase local database data.

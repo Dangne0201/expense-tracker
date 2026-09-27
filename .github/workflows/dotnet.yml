@@ -42,7 +42,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Create disposable SQL password
-        run: echo "CI_SQL_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+        run: echo "CI_SQL_PASSWORD=ExpenseTracker_CI_$(openssl rand -hex 24)_aA9!" >> "$GITHUB_ENV"
 
       - name: Start disposable SQL Server
         run: |
@@ -68,6 +68,8 @@ jobs:
           fi
 
           docker cp data/init.sql expense-sql-ci:/tmp/init.sql
+          docker exec --env SQLCMDPASSWORD="$CI_SQL_PASSWORD" expense-sql-ci \
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -i /tmp/init.sql
           docker exec --env SQLCMDPASSWORD="$CI_SQL_PASSWORD" expense-sql-ci \
             /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -i /tmp/init.sql
 

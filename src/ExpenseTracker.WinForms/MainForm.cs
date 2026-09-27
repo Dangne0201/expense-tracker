@@ -1,9 +1,11 @@
 using System;
-using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using ExpenseTracker.Core;
 using Microsoft.Data.SqlClient;
@@ -44,12 +46,24 @@ namespace ExpenseTracker.WinForms
         private ComboBox cboFilterCategory;
         private Button btnApplyFilters;
         private Button btnClearFilters;
+        private Button btnExportExpenses;
         private Label lblMonthTotal;
         private Label lblExpenseStatus;
         private ErrorProvider _inputErrors;
         private bool _isEditingExpense;
         private int _editingExpenseId;
         private int _expenseLoadVersion;
+        private CancellationTokenSource _expenseLoadCancellation;
+        private IReadOnlyList<Expense> _visibleExpenses = Array.Empty<Expense>();
+
+        private sealed record ExpenseGridRow(
+            int? Id,
+            decimal? Amount,
+            DateTime? Date,
+            string Note,
+            int? CategoryId,
+            string CategoryName,
+            bool IsTotal);
 
         public MainForm()
         {
@@ -59,9 +73,10 @@ namespace ExpenseTracker.WinForms
             InitializeComponents();
             Shown += async (s, e) =>
             {
-                LoadCategories();
+                await LoadCategoriesAsync();
                 await LoadExpensesAsync();
             };
+            FormClosing += (s, e) => _expenseLoadCancellation?.Cancel();
         }
 
         private void InitializeComponents()
@@ -157,8 +172,8 @@ namespace ExpenseTracker.WinForms
             footerLeft.Controls.Add(btnLoadCategories);
             footerLeft.Controls.Add(txtNewCategory);
             footerLeft.Controls.Add(btnAddCategory);
-            btnLoadCategories.Click += (s, e) => LoadCategories();
-            btnAddCategory.Click += (s, e) => AddCategory();
+            btnLoadCategories.Click += async (s, e) => await LoadCategoriesAsync();
+            btnAddCategory.Click += async (s, e) => await AddCategoryAsync();
 
             // Expense controls on the right footer.
             var footerRight = new Panel { Dock = DockStyle.Fill };
@@ -181,7 +196,16 @@ namespace ExpenseTracker.WinForms
             inputTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
             var lblAmount = new Label { Text = "&Amount", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(3, 8, 6, 3), AccessibleName = "Amount input label" };
-            txtAmount = new TextBox { Name = "txtAmount", Width = 120, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(3, 6, 6, 6), AccessibleName = "Expense amount", AccessibleDescription = "Enter a positive amount with at most two decimal places." };
+            txtAmount = new TextBox
+            {
+                Name = "txtAmount",
+                Width = 120,
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Margin = new Padding(3, 6, 6, 6),
+                AccessibleName = "Expense amount",
+                AccessibleDescription =
+                    $"Enter a positive amount using '{CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator}' as the decimal separator, with at most two decimal places."
+            };
             txtAmount.TextChanged += (s, e) => _inputErrors.SetError(txtAmount, string.Empty);
 
             var lblDate = new Label { Text = "&Date", AutoSize = true, TextAlign = ContentAlignment.MiddleRight, Anchor = AnchorStyles.Right, Margin = new Padding(12, 8, 6, 3), AccessibleName = "Expense date label" };
@@ -221,9 +245,9 @@ namespace ExpenseTracker.WinForms
             footerRightTable.Controls.Add(btnLoadExpenses, 2, 1);
             footerRightTable.Controls.Add(btnAddExpense, 3, 1);
 
-            btnAddExpense.Click += (s, e) => AddExpense();
+            btnAddExpense.Click += async (s, e) => await AddExpenseAsync();
             btnLoadExpenses.Click += async (s, e) => await LoadExpensesAsync();
-            btnDeleteExpense.Click += (s, e) => DeleteSelectedExpense();
+            btnDeleteExpense.Click += async (s, e) => await DeleteSelectedExpenseAsync();
             dgvExpenses.CellDoubleClick += (s, e) =>
             {
                 if (e.RowIndex >= 0)
@@ -330,13 +354,23 @@ namespace ExpenseTracker.WinForms
                 Margin = new Padding(3, 5, 3, 3),
                 AccessibleName = "Clear expense filters"
             };
+            btnExportExpenses = new Button
+            {
+                Name = "btnExportExpenses",
+                Text = "Export CSV",
+                Width = 96,
+                Height = 32,
+                Margin = new Padding(3, 5, 3, 3),
+                AccessibleName = "Export filtered expenses to CSV"
+            };
             filters.Controls.AddRange(new Control[]
             {
                 dtpFilterFrom,
                 dtpFilterTo,
                 cboFilterCategory,
                 btnApplyFilters,
-                btnClearFilters
+                btnClearFilters,
+                btnExportExpenses
             });
 
             dtpSummaryMonth = new DateTimePicker
@@ -385,6 +419,7 @@ namespace ExpenseTracker.WinForms
 
                 await LoadExpensesAsync();
             };
+            btnExportExpenses.Click += (s, e) => ExportExpenses();
 
             return filterPanel;
         }
@@ -599,30 +634,31 @@ namespace ExpenseTracker.WinForms
         /// <summary>
         /// Loads categories from the database into the left-side list box.
         /// </summary>
-        private void LoadCategories()
+        private async Task LoadCategoriesAsync()
         {
             try
             {
-                var previousFilterCategory = cboFilterCategory.SelectedValue is int selectedId
+                var previousFilterCategoryId = cboFilterCategory.SelectedValue is int selectedId
                     ? selectedId
                     : 0;
-                var categories = _repository.GetCategories();
-                lstCategories.DisplayMember = "Name";
-                lstCategories.ValueMember = "Id";
+                var categories = await _repository.GetCategoriesAsync();
+                lstCategories.DisplayMember = nameof(Category.Name);
+                lstCategories.ValueMember = nameof(Category.Id);
                 lstCategories.DataSource = categories;
 
-                var filterCategories = categories.Copy();
-                var allCategories = filterCategories.NewRow();
-                allCategories["Id"] = 0;
-                allCategories["Name"] = "All categories";
-                filterCategories.Rows.InsertAt(allCategories, 0);
-                cboFilterCategory.DisplayMember = "Name";
-                cboFilterCategory.ValueMember = "Id";
+                var filterCategories = new[] { new Category(0, "All categories") }
+                    .Concat(categories)
+                    .ToList();
+                cboFilterCategory.DisplayMember = nameof(Category.Name);
+                cboFilterCategory.ValueMember = nameof(Category.Id);
                 cboFilterCategory.DataSource = filterCategories;
-                cboFilterCategory.SelectedValue = filterCategories.AsEnumerable()
-                    .Any(row => row.Field<int>("Id") == previousFilterCategory)
-                    ? previousFilterCategory
+                cboFilterCategory.SelectedValue = filterCategories
+                    .Any(category => category.Id == previousFilterCategoryId)
+                    ? previousFilterCategoryId
                     : 0;
+            }
+            catch (OperationCanceledException)
+            {
             }
             catch (Exception ex)
             {
@@ -630,7 +666,7 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        private void AddCategory()
+        private async Task AddCategoryAsync()
         {
             var name = txtNewCategory.Text.Trim();
             if (!ExpenseValidation.IsValidCategoryName(name))
@@ -642,9 +678,14 @@ namespace ExpenseTracker.WinForms
 
             try
             {
-                _repository.AddCategory(name);
+                await _repository.AddCategoryAsync(name);
                 txtNewCategory.Text = "";
-                LoadCategories();
+                await LoadCategoriesAsync();
+            }
+            catch (SqlException ex) when (ex.Number is 2601 or 2627)
+            {
+                _inputErrors.SetError(txtNewCategory, "A category with this name already exists.");
+                txtNewCategory.Focus();
             }
             catch (Exception ex)
             {
@@ -673,78 +714,85 @@ namespace ExpenseTracker.WinForms
             }
 
             var requestVersion = System.Threading.Interlocked.Increment(ref _expenseLoadVersion);
+            _expenseLoadCancellation?.Cancel();
+            var loadCancellation = new CancellationTokenSource();
+            _expenseLoadCancellation = loadCancellation;
             btnApplyFilters.Enabled = false;
             btnClearFilters.Enabled = false;
             UseWaitCursor = true;
             lblExpenseStatus.Text = "Loading expenses...";
             try
             {
-                var result = await Task.Run(() =>
-                {
-                    var expenses = _repository.GetExpenses(startDate, endDate, categoryId);
-                    var monthTotal = _repository.GetMonthlyTotal(summaryMonth, categoryId);
-                    return (Expenses: expenses, MonthTotal: monthTotal);
-                });
+                var filter = new ExpenseFilter(startDate, endDate, categoryId);
+                var expensesTask = _repository.GetExpensesAsync(filter, loadCancellation.Token);
+                var monthlyTotalTask = _repository.GetMonthlyTotalAsync(
+                    summaryMonth,
+                    categoryId,
+                    loadCancellation.Token);
+                await Task.WhenAll(expensesTask, monthlyTotalTask);
 
-                if (IsDisposed || requestVersion != System.Threading.Volatile.Read(ref _expenseLoadVersion))
+                if (IsDisposed || requestVersion != Volatile.Read(ref _expenseLoadVersion))
                 {
                     return;
                 }
 
-                var dt = result.Expenses;
-                var expenseCount = dt.Rows.Count;
-
-                var totalAmount = ExpenseSummary.CalculateTotal(
-                    dt.AsEnumerable()
-                        .Where(row => row["Amount"] != DBNull.Value)
-                        .Select(row => Convert.ToDecimal(row["Amount"])));
-                var totalRow = dt.NewRow();
-                totalRow["Id"] = DBNull.Value;
-                totalRow["Amount"] = totalAmount;
-                totalRow["Date"] = DBNull.Value;
-                totalRow["Note"] = DBNull.Value;
-                totalRow["CategoryId"] = DBNull.Value;
-                totalRow["CategoryName"] = "TOTAL";
-                dt.Rows.Add(totalRow);
-
-                dgvExpenses.DataSource = dt;
-
-                if (dt.Rows.Count > 0 &&
-                    dt.Rows[dt.Rows.Count - 1]["CategoryName"]?.ToString() == "TOTAL")
-                {
-                    dgvExpenses.Rows[dgvExpenses.Rows.Count - 1].DefaultCellStyle.Font =
-                        new Font(dgvExpenses.Font, FontStyle.Bold);
-                }
+                var expenses = await expensesTask;
+                var monthlyTotal = await monthlyTotalTask;
+                _visibleExpenses = expenses;
+                var totalAmount = ExpenseSummary.CalculateTotal(expenses.Select(expense => expense.Amount));
+                var gridRows = expenses.Select(expense => new ExpenseGridRow(
+                    expense.Id,
+                    expense.Amount,
+                    expense.Date,
+                    expense.Note,
+                    expense.CategoryId,
+                    expense.CategoryName,
+                    false)).ToList();
+                gridRows.Add(new ExpenseGridRow(null, totalAmount, null, null, null, "TOTAL", true));
+                dgvExpenses.DataSource = gridRows;
+                dgvExpenses.Rows[dgvExpenses.Rows.Count - 1].DefaultCellStyle.Font =
+                    new Font(dgvExpenses.Font, FontStyle.Bold);
 
                 if (dgvExpenses.Columns.Contains("Id")) dgvExpenses.Columns["Id"].Visible = false;
                 if (dgvExpenses.Columns.Contains("CategoryId")) dgvExpenses.Columns["CategoryId"].Visible = false;
+                if (dgvExpenses.Columns.Contains("IsTotal")) dgvExpenses.Columns["IsTotal"].Visible = false;
                 if (dgvExpenses.Columns.Contains("CategoryName"))
                 {
                     dgvExpenses.Columns["CategoryName"].HeaderText = "Category";
                 }
                 SetExpenseColumnLayout();
                 lblMonthTotal.Text =
-                    $"Month total ({summaryMonth:MMMM yyyy}): {ExpenseSummary.FormatAmount(result.MonthTotal)}";
-                lblExpenseStatus.Text = expenseCount == 0
+                    $"Month total ({summaryMonth:MMMM yyyy}): {ExpenseSummary.FormatAmount(monthlyTotal)}";
+                lblExpenseStatus.Text = expenses.Count == 0
                     ? "No expenses match these filters. Clear filters or add an expense."
-                    : $"Showing {expenseCount} expense{(expenseCount == 1 ? string.Empty : "s")}.";
+                    : $"Showing {expenses.Count} expense{(expenses.Count == 1 ? string.Empty : "s")}.";
+            }
+            catch (OperationCanceledException) when (loadCancellation.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
-                if (requestVersion == System.Threading.Volatile.Read(ref _expenseLoadVersion))
+                if (requestVersion == Volatile.Read(ref _expenseLoadVersion))
                 {
-                    lblExpenseStatus.Text = "Unable to load expenses. Check the database and try again.";
+                    lblExpenseStatus.Text = "Unable to load expenses. Select Load Expenses to retry.";
                 }
                 ShowDatabaseError("Loading expenses", ex);
             }
             finally
             {
-                if (!IsDisposed && requestVersion == System.Threading.Volatile.Read(ref _expenseLoadVersion))
+                if (!IsDisposed && requestVersion == Volatile.Read(ref _expenseLoadVersion))
                 {
                     btnApplyFilters.Enabled = true;
                     btnClearFilters.Enabled = true;
                     UseWaitCursor = false;
                 }
+
+                if (ReferenceEquals(_expenseLoadCancellation, loadCancellation))
+                {
+                    _expenseLoadCancellation = null;
+                }
+
+                loadCancellation.Dispose();
             }
         }
 
@@ -783,7 +831,41 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        private void AddExpense()
+        private void ExportExpenses()
+        {
+            using var dialog = new SaveFileDialog
+            {
+                AddExtension = true,
+                DefaultExt = "csv",
+                FileName = $"expenses-{DateTime.Today:yyyy-MM-dd}.csv",
+                Filter = "CSV files (*.csv)|*.csv",
+                OverwritePrompt = true
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            try
+            {
+                using var writer = new StreamWriter(dialog.FileName, false, new System.Text.UTF8Encoding(true));
+                ExpenseCsvExporter.Write(writer, _visibleExpenses);
+                lblExpenseStatus.Text = $"Exported {_visibleExpenses.Count} filtered expenses.";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                Trace.TraceError(
+                    "CSV export failed. ExceptionType={0}",
+                    ex.GetType().Name);
+                MessageBox.Show(
+                    "Could not export the CSV file. Check the destination and your write permissions.",
+                    "Export failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task AddExpenseAsync()
         {
             if (lstCategories.Items.Count == 0)
             {
@@ -791,7 +873,7 @@ namespace ExpenseTracker.WinForms
                 return;
             }
 
-            if (lstCategories.SelectedItem == null)
+            if (lstCategories.SelectedItem is not Category selectedCategory)
             {
                 MessageBox.Show("Select a category from the list.");
                 return;
@@ -808,22 +890,26 @@ namespace ExpenseTracker.WinForms
 
             var date = dtpDate.Value;
             var note = txtNote.Text.Trim();
-            var row = (DataRowView)lstCategories.SelectedItem;
-            var categoryId = Convert.ToInt32(row["Id"]);
+            var categoryId = selectedCategory.Id;
 
             try
             {
                 if (_isEditingExpense)
                 {
-                    _repository.UpdateExpense(_editingExpenseId, amount, date, note, categoryId);
+                    var updated = await _repository.UpdateExpenseAsync(
+                        _editingExpenseId, amount, date, note, categoryId);
+                    if (!updated)
+                    {
+                        lblExpenseStatus.Text = "This expense no longer exists. The list has been refreshed.";
+                    }
                 }
                 else
                 {
-                    _repository.AddExpense(amount, date, note, categoryId);
+                    await _repository.AddExpenseAsync(amount, date, note, categoryId);
                 }
 
                 ResetExpenseEditor();
-                _ = LoadExpensesAsync();
+                await LoadExpensesAsync();
             }
             catch (Exception ex)
             {
@@ -831,7 +917,7 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        private void DeleteSelectedExpense()
+        private async Task DeleteSelectedExpenseAsync()
         {
             if (dgvExpenses.CurrentRow == null)
             {
@@ -841,14 +927,12 @@ namespace ExpenseTracker.WinForms
 
             try
             {
-                var idObj = dgvExpenses.CurrentRow.Cells["Id"].Value;
-                if (idObj == null || idObj == DBNull.Value)
+                if (dgvExpenses.CurrentRow.DataBoundItem is not ExpenseGridRow { Id: int id, IsTotal: false })
                 {
                     MessageBox.Show("The total row cannot be deleted. Select an expense row.");
                     return;
                 }
 
-                var id = Convert.ToInt32(idObj);
                 var confirmation = MessageBox.Show(
                     this,
                     "Delete the selected expense? This action cannot be undone.",
@@ -861,12 +945,17 @@ namespace ExpenseTracker.WinForms
                     return;
                 }
 
-                _repository.DeleteExpense(id);
+                var deleted = await _repository.DeleteExpenseAsync(id);
                 if (_isEditingExpense && id == _editingExpenseId)
                 {
                     ResetExpenseEditor();
                 }
-                _ = LoadExpensesAsync();
+                if (!deleted)
+                {
+                    lblExpenseStatus.Text = "This expense no longer exists. The list has been refreshed.";
+                }
+
+                await LoadExpensesAsync();
             }
             catch (Exception ex)
             {
@@ -895,21 +984,23 @@ namespace ExpenseTracker.WinForms
 
         private void BeginEditSelectedExpense()
         {
-            var currentRow = dgvExpenses.CurrentRow;
-            if (currentRow == null || currentRow.Cells["Id"].Value == null ||
-                currentRow.Cells["Id"].Value == DBNull.Value)
+            if (dgvExpenses.CurrentRow?.DataBoundItem is not ExpenseGridRow
+                {
+                    Id: int id,
+                    Amount: decimal amount,
+                    Date: DateTime date,
+                    CategoryId: int categoryId,
+                    IsTotal: false
+                } row)
             {
                 return;
             }
 
-            var row = (DataRowView)currentRow.DataBoundItem;
-            _editingExpenseId = Convert.ToInt32(row["Id"]);
-            txtAmount.Text = Convert.ToDecimal(row["Amount"]).ToString(CultureInfo.CurrentCulture);
-            dtpDate.Value = Convert.ToDateTime(row["Date"]);
-            txtNote.Text = row["Note"] == DBNull.Value
-                ? string.Empty
-                : Convert.ToString(row["Note"]);
-            lstCategories.SelectedValue = Convert.ToInt32(row["CategoryId"]);
+            _editingExpenseId = id;
+            txtAmount.Text = amount.ToString(CultureInfo.CurrentCulture);
+            dtpDate.Value = date;
+            txtNote.Text = row.Note ?? string.Empty;
+            lstCategories.SelectedValue = categoryId;
             _isEditingExpense = true;
             btnAddExpense.Text = "Save Changes";
         }

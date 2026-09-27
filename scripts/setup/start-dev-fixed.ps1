@@ -155,24 +155,13 @@ if (-not $ready) {
     throw "SQL Server did not become ready. Check 'docker compose logs mssql'; existing volumes are left untouched."
 }
 
-$databaseCheck = & $docker.Source compose --project-directory $repoRoot exec -T `
+& $docker.Source compose --project-directory $repoRoot exec -T `
     -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa `
--Q "SET NOCOUNT ON; SELECT CASE WHEN DB_ID('ExpenseDb') IS NULL THEN 0 ELSE 1 END" -C -b
+    -i /init/init.sql -C -b
 if ($LASTEXITCODE -ne 0) {
-    throw "Could not check whether ExpenseDb exists."
+    throw "Database initialization or migration failed. Existing volume data was not deleted; review the SQL error before retrying."
 }
-if (($databaseCheck -join "`n") -match "(?m)^\s*0\s*$") {
-    & $docker.Source compose --project-directory $repoRoot exec -T `
-        -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa `
-        -i /init/init.sql -C -b
-    if ($LASTEXITCODE -ne 0) {
-        throw "Database initialization failed. Existing volume data was not deleted."
-    }
-    Write-Host "ExpenseDb initialized from data/init.sql."
-}
-else {
-    Write-Host "ExpenseDb already exists; existing database data was preserved."
-}
+Write-Host "Database schema and safe migrations applied from data/init.sql; existing rows were preserved."
 
 $credentialFile = [Environment]::GetEnvironmentVariable("EXPENSE_TRACKER_CREDENTIAL_FILE", "Process")
 if ([string]::IsNullOrWhiteSpace($credentialFile)) {

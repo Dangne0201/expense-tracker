@@ -122,7 +122,7 @@ Một dự án tốt nên đạt được các tiêu chí sau:
 
 ## Kết luận
 
-Dự án Expense Tracker có nền tảng tốt cho một ứng dụng học tập và demo: repo sạch, có Docker-based setup, schema được tạo lại từ script, và có triển vọng dễ mở rộng. Tuy nhiên, để đạt chuẩn review tốt, cần tiếp tục bổ sung các tiêu chí sau:
+Dự án Expense Tracker có nền tảng tốt cho một ứng dụng học tập và demo: có Docker-based setup, schema/migration từ source, UI automation, integration tests trên SQL disposable, và có giới hạn bảo mật được ghi rõ. Đây là template review/learning doc; các gợi ý dưới đây không phải cam kết rằng sản phẩm hiện thiếu toàn bộ các mục đó.
 
 - validation rõ ràng,
 - tests đầy đủ hơn,
@@ -130,4 +130,13 @@ Dự án Expense Tracker có nền tảng tốt cho một ứng dụng học t�
 - tài liệu setup và changelog được cập nhật liên tục,
 - tính an toàn và hygiene của repo được duy trì.
 
-Nếu dự án tiếp tục phát triển theo hướng này, repo sẽ trở thành một base khá ổn cho demo, training và thậm chí mở rộng thành một ứng dụng quản lý ngân sách thực tế hơn.
+## Trạng thái hiện tại cần đối chiếu khi review
+
+- `ExpenseTracker.Core` hiện có typed category/expense/filter models, asynchronous SQL repository methods, validation/summary helpers, và CSV serialization; `MainForm` vẫn giữ layout và orchestration, nên có thể tiếp tục tách view logic nếu app phát triển thêm.
+- `data/init.sql` chạy lại an toàn và có migration có version; trên SQL Server 2019 đã kiểm tra nâng từ schema cũ, chạy script hai lần và giữ lại dữ liệu mẫu cũ. Duplicate/invalid legacy data sẽ chặn migration có chủ đích, không tự gộp dữ liệu.
+- Local verification gần nhất: Release build không warning/error, 25 unit tests, 4 repository integration tests và 2 UI tests pass; integration/UI chạy với SQL disposable.
+- CI xanh ở `a1fc63c` chỉ xác nhận trạng thái trước các thay đổi mới nhất; cần kiểm tra lại GitHub Actions sau khi các thay đổi tiếp theo được commit/push.
+- Release public `v0.3.9` vẫn là bundle cũ; tạo release mới chỉ sau khi source commit và CI hiện hành đã xanh.
+- Clean Windows profile/VM và DPAPI first-run/reuse vẫn cần xác minh độc lập; kết quả local trên cùng profile không thay thế bằng chứng đó.
+
+Khi review một commit mới, cập nhật phần trạng thái trên từ kết quả thực tế thay vì giữ số test, commit hoặc trạng thái release cũ.

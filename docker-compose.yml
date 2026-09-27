@@ -1,7 +1,7 @@
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2019-latest
-    container_name: expense-mssql
+    container_name: "${EXPENSE_TRACKER_CONTAINER_NAME:-expense-mssql}"
     user: "0:0"
     entrypoint: ["/bin/bash", "-c"]
     command: ["if [ \"$(stat -c '%U' /var/opt/mssql/data)\" != \"mssql\" ]; then chown -R mssql:0 /var/opt/mssql/data; fi && exec su -s /bin/bash mssql -c '/opt/mssql/bin/permissions_check.sh /opt/mssql/bin/sqlservr'"]
@@ -9,7 +9,7 @@ services:
       SA_PASSWORD: "${SA_PASSWORD:?Set SA_PASSWORD in the process environment or local .env file}"
       ACCEPT_EULA: "Y"
     ports:
-      - "127.0.0.1:1433:1433"
+      - "127.0.0.1:${EXPENSE_TRACKER_SQL_PORT:-1433}:1433"
     volumes:
       - mssqldata:/var/opt/mssql/data
       - ./data/init.sql:/init/init.sql:ro

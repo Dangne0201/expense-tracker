@@ -126,6 +126,12 @@ DELETE FROM Categories WHERE Name = @name;",
                 {
                     var main = app.GetMainWindow(automation, TimeSpan.FromSeconds(20));
                     Assert.That(main, Is.Not.Null, "Main window should appear before CRUD automation");
+                    Assert.That(Find(main!, "btnExportExpenses").Name, Does.Contain("Export"));
+                    main!.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Maximized);
+                    System.Threading.Thread.Sleep(250);
+                    Assert.That(Find(main, "dgvExpenses").BoundingRectangle.Width, Is.GreaterThan(0));
+                    main.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Normal);
+                    System.Threading.Thread.Sleep(250);
 
                     var categoryInput = Find(main!, "txtNewCategory").AsTextBox();
                     categoryInput.Text = categoryName;
@@ -149,6 +155,65 @@ DELETE FROM Categories WHERE Name = @name;",
                         "Filtering by the expense category should retain its matching row");
                     Assert.That(Find(main!, "lblMonthTotal").Name, Does.Contain("Month total"));
                     Assert.That(Find(main!, "lblExpenseStatus").Name, Does.Contain("Showing 1 expense"));
+                    var exportPath = Path.Combine(
+                        Path.GetTempPath(),
+                        $"expense-tracker-ui-export-{Guid.NewGuid():N}.csv");
+                    try
+                    {
+                        Find(main, "btnExportExpenses").AsButton().Click();
+                        var saveDialog = WaitForSaveDialog(automation);
+                        var cancelButton = saveDialog.FindFirstDescendant(
+                            condition => condition.ByControlType(ControlType.Button).And(condition.ByName("Cancel")));
+                        Assert.That(cancelButton, Is.Not.Null,
+                            "The Save As dialog should expose a Cancel button.");
+                        cancelButton!.Click();
+                        WaitForSaveDialogToClose(automation);
+                        Assert.That(File.Exists(exportPath), Is.False,
+                            "Cancelling the Save As dialog must not create an export file.");
+
+                        Find(main, "btnExportExpenses").AsButton().Click();
+                        saveDialog = WaitForSaveDialog(automation);
+                        var fileNameInput = saveDialog.FindFirstDescendant(
+                            condition => condition.ByName("File name:"));
+                        Assert.That(fileNameInput, Is.Not.Null,
+                            "The Save As dialog should expose its File name field.");
+                        fileNameInput!.Click();
+                        System.Threading.Thread.Sleep(200);
+                        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
+                        Keyboard.Type(exportPath);
+                        System.Threading.Thread.Sleep(200);
+                        var saveButton = saveDialog.FindFirstDescendant(
+                            condition => condition.ByControlType(ControlType.Button)
+                                .And(condition.ByName("Save").Or(condition.ByName("Open"))));
+                        Assert.That(saveButton, Is.Not.Null,
+                            "The Save As dialog should expose its confirmation button.");
+                        Keyboard.Press(VirtualKeyShort.ENTER);
+                        WaitForSaveDialogToClose(automation);
+
+                        var exportTimeout = System.Diagnostics.Stopwatch.StartNew();
+                        while (!File.Exists(exportPath) && exportTimeout.Elapsed < TimeSpan.FromSeconds(5))
+                        {
+                            System.Threading.Thread.Sleep(100);
+                        }
+
+                        Assert.That(File.Exists(exportPath), Is.True,
+                            "Confirming the Save As dialog should create the CSV file.");
+                        var exportedCsv = File.ReadAllText(exportPath);
+                        Assert.That(exportedCsv, Does.Contain("Amount,Date,Note,Category"));
+                        Assert.That(exportedCsv, Does.Contain("\"12.50\""));
+                        Assert.That(exportedCsv, Does.Contain($"\"{note}\""));
+                        Assert.That(exportedCsv, Does.Contain($"\"{categoryName}\""));
+                        Assert.That(exportedCsv, Does.Not.Contain("TOTAL"),
+                            "The display-only total row must not be included in the export.");
+                    }
+                    finally
+                    {
+                        if (File.Exists(exportPath))
+                        {
+                            File.Delete(exportPath);
+                        }
+                    }
+
                     Find(main!, "btnClearFilters").AsButton().Invoke();
                     Assert.That(WaitForRow(grid, note, shouldExist: true), Is.Not.Null);
                     addedRow = WaitForRow(grid, note, shouldExist: true)!;
@@ -292,6 +357,53 @@ DELETE FROM Categories WHERE Name = @name;",
             var yesButton = dialog!.FindFirstDescendant(condition => condition.ByName("Yes"));
             Assert.That(yesButton, Is.Not.Null, "The confirmation dialog should expose a Yes button.");
             yesButton!.AsButton().Invoke();
+        }
+
+        private static AutomationElement WaitForSaveDialog(UIA3Automation automation)
+        {
+            var timeout = System.Diagnostics.Stopwatch.StartNew();
+            var desktop = automation.GetDesktop();
+            AutomationElement? dialog;
+            do
+            {
+                var windows = desktop.FindAllChildren(
+                    condition => condition.ByControlType(ControlType.Window));
+                dialog = windows.FirstOrDefault(window =>
+                    string.Equals(window.Name, "Save As", StringComparison.OrdinalIgnoreCase) ||
+                    window.FindFirstDescendant(condition =>
+                        condition.ByControlType(ControlType.Button).And(condition.ByName("Save"))) != null);
+                if (dialog != null)
+                {
+                    return dialog;
+                }
+
+                System.Threading.Thread.Sleep(100);
+            }
+            while (timeout.Elapsed < TimeSpan.FromSeconds(5));
+
+            var windowNames = string.Join(", ", desktop.FindAllChildren(
+                condition => condition.ByControlType(ControlType.Window)).Select(window => window.Name));
+            Assert.Fail($"The CSV export should show the Save As dialog. Top-level windows: {windowNames}");
+            throw new InvalidOperationException("Unreachable after failed Save As dialog assertion.");
+        }
+
+        private static void WaitForSaveDialogToClose(UIA3Automation automation)
+        {
+            var timeout = System.Diagnostics.Stopwatch.StartNew();
+            do
+            {
+                var dialog = automation.GetDesktop().FindFirstDescendant(
+                    condition => condition.ByControlType(ControlType.Window).And(condition.ByName("Save As")));
+                if (dialog == null)
+                {
+                    return;
+                }
+
+                System.Threading.Thread.Sleep(100);
+            }
+            while (timeout.Elapsed < TimeSpan.FromSeconds(5));
+
+            Assert.Fail("The Save As dialog should close after cancelling.");
         }
 
         private static string ResolveAppPath(string repoRoot, string configuration)

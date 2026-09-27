@@ -15,7 +15,7 @@ Run commands from the repository root (the directory containing `ExpenseTracker.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-unit-tests.ps1
 ```
 
-These tests cover database-independent rules in `ExpenseTracker.Core`. The script filters out tests tagged `Category=Integration`, so it cannot accidentally connect to SQL Server.
+These tests cover database-independent rules in `ExpenseTracker.Core`, including culture parsing, filter validation, and CSV quoting/formula safety. The script filters out tests tagged `Category=Integration`, so it cannot accidentally connect to SQL Server.
 
 ## Integration tests
 
@@ -25,7 +25,7 @@ Use a disposable local Docker database only:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1
 ```
 
-The script securely prompts for the local SA password, starts SQL Server without force-recreating the container, and initializes `ExpenseDb` only when it does not exist. Integration tests are tagged `Category=Integration`, reject non-local connection targets, and use uniquely named test data with cleanup. Do not use them for shared or production data.
+The script securely prompts for the local SA password, starts SQL Server without force-recreating the container, and reapplies the idempotent schema/migration script without deleting existing rows. Integration tests are tagged `Category=Integration`, reject non-local connection targets, and use uniquely named test data with cleanup. Do not use them for shared or production data.
 
 For a separately created disposable SQL Server on another loopback port, set `SQL_CONN` to that instance and pass its port. The test runner then validates that the target is `ExpenseDb` on `localhost` or `127.0.0.1` at exactly that port and skips the repository's persistent Docker setup:
 
@@ -35,7 +35,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integrat
 Remove-Item Env:SQL_CONN
 ```
 
-Use only a disposable database for this mode; the test rolls back its transaction, but the custom instance is managed outside the setup script. Replace `<disposable-password>` with that disposable server password; do not commit real credentials.
+Use only a disposable database for this mode; the test rolls back its transaction, but the custom instance is managed outside the setup script. Replace `<disposable-password>` in the connection string before running; do not commit real credentials.
 
 ## UI smoke test
 
@@ -63,7 +63,7 @@ Both modes build the WinForms app in the requested configuration and launch it t
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\smoke-test-remote.ps1
 ```
 
-This starts Docker, initializes the local database only if missing, creates/verifies the restricted application login, builds the test project, and runs only integration tests. It may add data only inside a rolled-back transaction; it never removes the Docker volume. Use the same SA password already associated with an existing volume.
+This starts Docker, reapplies the safe schema/migrations without removing existing database rows, creates/verifies the restricted application login, builds the test project, and runs only integration tests. It may add data only inside a rolled-back transaction; it never removes the Docker volume. Use the same SA password already associated with an existing volume.
 
 ## Manual QA
 
@@ -75,8 +75,17 @@ This starts Docker, initializes the local database only if missing, creates/veri
 - Confirm zero, negative, malformed, more-than-two-decimal, and out-of-range amounts are rejected.
 - Load expenses and confirm the total row is shown.
 - Confirm amounts use the current Windows culture's currency format; the total row must not be deletable.
+- Confirm date filters are inclusive and monthly totals use the selected month/category regardless of the grid date range.
+- Confirm filter empty/error states offer a clear/retry path; **Load Expenses** retries a failed request.
+- Resize and maximize/restore the window; verify the grid and footer remain reachable, then exercise the form using keyboard navigation and Escape.
+- Export filtered expenses; verify the CSV includes only matching expenses (not the TOTAL display row), uses invariant decimal/date values, safely quotes commas/quotes/newlines, and neutralizes formula-leading text.
 - Delete the new expense and confirm it disappears.
 - Stop SQL Server and confirm the app reports a connection problem.
+- Apply `data/init.sql` twice to a disposable database; both runs should succeed without duplicating starter categories or migration records.
+- Category names are trimmed by the UI, reject blank/space-padded values, and are unique ignoring case; a database-level duplicate must fail without exposing SQL details to the user.
+- A filter start and end on the same day includes expenses throughout that day; monthly totals use the selected month and category, independent of the grid date range.
+- Run the Windows setup workflow twice against a disposable database; the schema and migration should remain idempotent and preserve existing rows.
+- Confirm a legacy database with duplicate categories or non-positive expense amounts fails the migration with a specific diagnostic and retains all rows for manual resolution.
 
 ## CI boundary
 

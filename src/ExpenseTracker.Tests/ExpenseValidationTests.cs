@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using ExpenseTracker.Core;
 using Xunit;
 
@@ -124,5 +125,42 @@ public class ExpenseValidationTests
     public void CategoryName_accepts_non_empty_names(string name)
     {
         Assert.True(ExpenseValidation.IsValidCategoryName(name));
+    }
+
+    [Fact]
+    public void ExpenseFilter_rejects_a_start_date_after_the_end_date()
+    {
+        var filter = new ExpenseFilter(new DateTime(2026, 5, 2), new DateTime(2026, 5, 1));
+
+        Assert.Throws<ArgumentException>(filter.Validate);
+    }
+
+    [Fact]
+    public void ExpenseFilter_rejects_non_positive_category_ids()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ExpenseFilter(CategoryId: 0).Validate());
+    }
+
+    [Fact]
+    public void CsvExport_uses_invariant_values_quotes_special_fields_and_neutralizes_formulas()
+    {
+        var expense = new Expense(
+            1,
+            12.5m,
+            new DateTime(2026, 9, 27, 14, 5, 6),
+            "=HYPERLINK(\"bad\"),\nLunch with \"quotes\"",
+            2,
+            "Food");
+        using var writer = new StringWriter(CultureInfo.GetCultureInfo("fr-FR"));
+
+        ExpenseCsvExporter.Write(writer, new[] { expense });
+
+        var csv = writer.ToString();
+        Assert.Contains("12.50", csv);
+        Assert.Contains("\"Food\"", csv);
+        Assert.Contains("\"'=HYPERLINK(\"\"bad\"\"),\nLunch with \"\"quotes\"\"\"", csv);
+        Assert.Contains("'=HYPERLINK", csv);
+        Assert.DoesNotContain("12,50", csv);
     }
 }
