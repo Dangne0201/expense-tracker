@@ -29,13 +29,14 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - Integration test: 1 passed against a disposable SQL Server.
 - The `v0.3.9` bundle was rebuilt from the current source and its metadata and startup files were inspected. It is ignored by Git.
 - The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
+- GitHub Actions `.NET` workflow for commit `d5ddf32` completed successfully.
+- The existing `expense-mssql` container was recreated with the loopback-only port binding; it is healthy and still uses the `expense_tracker_mssqldata` volume.
 
 ## Remaining proof before calling it ready to share
 
 - Repeat setup and review-bundle startup on a second clean Windows profile/VM; verify DPAPI credential creation/reuse there. Prior bundle setup and credential tests were run only on the current Windows profile.
-- Reapply and verify the current loopback-only port binding on any existing Docker container created with the older all-interface mapping; do this only with the matching SA password and preserve the existing named volume.
 - Repeat the manual interview demo on a clean reviewer machine if useful.
-- Run the updated source through GitHub Actions after publishing it; the most recent successful workflow run predates the uncommitted changes in this work session.
+- Publish the ignored `v0.3.9` ZIP as a GitHub Release if a direct downloadable portfolio artifact is desired; it has not been uploaded.
 
 ## Deliberate non-goals for this portfolio version
 
