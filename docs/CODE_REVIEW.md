@@ -135,8 +135,8 @@ Dự án Expense Tracker có nền tảng tốt cho một ứng dụng học t�
 - `ExpenseTracker.Core` hiện có typed category/expense/filter models, asynchronous SQL repository methods, validation/summary helpers, và CSV serialization; `MainForm` vẫn giữ layout và orchestration, nên có thể tiếp tục tách view logic nếu app phát triển thêm.
 - `data/init.sql` chạy lại an toàn và có migration có version; trên SQL Server 2019 đã kiểm tra nâng từ schema cũ, chạy script hai lần và giữ lại dữ liệu mẫu cũ. Duplicate/invalid legacy data sẽ chặn migration có chủ đích, không tự gộp dữ liệu.
 - Local verification gần nhất: Release build không warning/error, 25 unit tests, 4 repository integration tests và 2 UI tests pass; integration/UI chạy với SQL disposable.
-- CI xanh ở `a1fc63c` chỉ xác nhận trạng thái trước các thay đổi mới nhất; cần kiểm tra lại GitHub Actions sau khi các thay đổi tiếp theo được commit/push.
-- Release public `v0.3.9` vẫn là bundle cũ; tạo release mới chỉ sau khi source commit và CI hiện hành đã xanh.
+- GitHub Actions run [#8](https://github.com/Dangne0201/expense-tracker/actions/runs/36309807926) xanh cho commit `ca858d1` (Windows build/unit và Ubuntu SQL integration).
+- Release public [v0.3.10](https://github.com/Dangne0201/expense-tracker/releases/tag/v0.3.10) được build từ `ca858d1`; ZIP và SHA-256 đã được kiểm tra.
 - Clean Windows profile/VM và DPAPI first-run/reuse vẫn cần xác minh độc lập; kết quả local trên cùng profile không thay thế bằng chứng đó.
 
 Khi review một commit mới, cập nhật phần trạng thái trên từ kết quả thực tế thay vì giữ số test, commit hoặc trạng thái release cũ.

@@ -100,15 +100,15 @@ UI tests require an interactive Windows desktop. By default the UI test script s
 
 ## Release bundle
 
-Download the current [Expense Tracker v0.3.9 Windows x64 release](https://github.com/Dangne0201/expense-tracker/releases/tag/v0.3.9), or build a self-contained review bundle locally:
+Download the current [Expense Tracker v0.3.10 Windows x64 release](https://github.com/Dangne0201/expense-tracker/releases/tag/v0.3.10), or build a self-contained review bundle locally:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.10"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.11"
 ```
 
 The generated ZIP is ignored by Git because it is a large build artifact. It includes `BUILD-INFO.txt` with the source commit and tracked changes present at package time. The bundle prompts for a local SQL Server password, creates the restricted `ExpenseApp` login, and contains no app/database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after the isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass.
 
-The currently published `v0.3.9` bundle was built from source commit `d5ddf32`. Its SHA-256 is `97229af4e65979976c7e04bb18e2c0c1b9b043d2fd928e386acfb93e1150b9f3`. Newer source changes require a new bundle version before they appear in a downloadable release.
+The currently published `v0.3.10` bundle was built from source commit `ca858d1`. Its SHA-256 is `EB718C9D56F1F59BC089273360A7176BCED23F06D57A10D8B19BD64A2C8EF4F6`. Build a new version after source changes before distributing them as a downloadable release.
 
 ## Troubleshooting
 

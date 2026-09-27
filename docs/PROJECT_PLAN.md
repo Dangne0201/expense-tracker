@@ -36,17 +36,14 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - Repository integration tests: 4 passed against disposable SQL Server 2019; schema initialization passed twice on an existing legacy schema while retaining its category and expense row.
 - Migration failure tests against disposable SQL Server 2019 confirmed that duplicate, blank, and non-positive legacy data produce clear diagnostics, preserve existing rows, and roll back migration DDL.
 - The setup script completed twice against an isolated SQL Server 2019 Compose project; it preserved the disposable database, reused the DPAPI-protected credential, and configured the `ExpenseApp` login. The disposable container, volume, and credential file were removed afterward.
-- The `v0.3.9` bundle was built from commit `d5ddf32`; its metadata and startup files were inspected. It is ignored by Git and predates the current filters, migration, typed async repository, and CSV export.
+- The `v0.3.10` bundle was built from commit `ca858d1`; its metadata, loopback Compose configuration, and startup files were inspected, and both UI workflows passed against its executable. The ignored ZIP is 52,987,384 bytes; SHA-256 is `EB718C9D56F1F59BC089273360A7176BCED23F06D57A10D8B19BD64A2C8EF4F6`.
 - The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
-- GitHub Actions `.NET` workflow for commit `a1fc63c` completed successfully for Windows build/unit and Ubuntu disposable SQL integration.
-- The follow-up documentation commit `b562c76` also passed GitHub Actions; the disposable SQL connection examples in the testing guide were parsed and verified after correction.
+- GitHub Actions `.NET` run [#8](https://github.com/Dangne0201/expense-tracker/actions/runs/36309807926) passed for source commit `ca858d1`: Windows build/unit and Ubuntu disposable SQL integration.
 - The existing `expense-mssql` container uses the loopback-only port binding; disposable QA did not alter its persistent volume.
-- GitHub Release `v0.3.9` was published with the verified Windows x64 bundle built from `d5ddf32`.
+- GitHub Release [v0.3.10](https://github.com/Dangne0201/expense-tracker/releases/tag/v0.3.10) was published with the verified Windows x64 bundle built from `ca858d1`.
 
 ## Remaining proof before calling it ready to share
 
-- Push the current source changes and confirm GitHub Actions succeeds on the resulting commit.
-- Publish a new release bundle only after that commit's CI is green; public `v0.3.9` predates the current filters, migration, typed async repository, and CSV export.
 - A clean Windows profile/VM test was deferred; the setup/DPAPI reuse check above ran on the current profile with isolated Docker data.
 - Databases with duplicate/invalid legacy values intentionally stop for manual resolution; setup does not merge or delete user data.
 
