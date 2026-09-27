@@ -42,7 +42,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Create disposable SQL password
-        run: echo "CI_SQL_PASSWORD=ExpenseTracker_CI_${GITHUB_RUN_ID}_A9!" >> "$GITHUB_ENV"
+        run: echo "CI_SQL_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
 
       - name: Start disposable SQL Server
         run: |
