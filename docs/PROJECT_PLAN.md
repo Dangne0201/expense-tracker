@@ -30,13 +30,14 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - The `v0.3.9` bundle was rebuilt from the current source and its metadata and startup files were inspected. It is ignored by Git.
 - The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
 - GitHub Actions `.NET` workflow for commit `d5ddf32` completed successfully.
+- The follow-up documentation commit `b562c76` also passed GitHub Actions; the disposable SQL connection examples in the testing guide were parsed and verified after correction.
 - The existing `expense-mssql` container was recreated with the loopback-only port binding; it is healthy and still uses the `expense_tracker_mssqldata` volume.
+- GitHub Release `v0.3.9` was published with the verified Windows x64 bundle built from `d5ddf32`.
 
 ## Remaining proof before calling it ready to share
 
 - Repeat setup and review-bundle startup on a second clean Windows profile/VM; verify DPAPI credential creation/reuse there. Prior bundle setup and credential tests were run only on the current Windows profile.
 - Repeat the manual interview demo on a clean reviewer machine if useful.
-- Publish the ignored `v0.3.9` ZIP as a GitHub Release if a direct downloadable portfolio artifact is desired; it has not been uploaded.
 
 ## Deliberate non-goals for this portfolio version
 

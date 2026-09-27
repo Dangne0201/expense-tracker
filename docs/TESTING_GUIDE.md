@@ -30,7 +30,7 @@ The script securely prompts for the local SA password, starts SQL Server without
 For a separately created disposable SQL Server on another loopback port, set `SQL_CONN` to that instance and pass its port. The test runner then validates that the target is `ExpenseDb` on `localhost` or `127.0.0.1` at exactly that port and skips the repository's persistent Docker setup:
 
 ```powershell
-$env:SQL_CONN = "Server=localhost,11433;Database=ExpenseDb;User ID=sa;Password=<disposable-password>;TrustServerCertificate=True;Encrypt=Falserd=<temporary-password>;TrustServerCertificate=True"
+$env:SQL_CONN = "Server=127.0.0.1,11433;Database=ExpenseDb;User ID=sa;Password=<disposable-password>;TrustServerCertificate=True;Encrypt=False"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1 -Port 11433
 Remove-Item Env:SQL_CONN
 ```
@@ -42,7 +42,7 @@ Use only a disposable database for this mode; the test rolls back its transactio
 For safe, isolated QA, start a disposable SQL Server on a non-default loopback port, initialize it with `data/init.sql`, then run the UI flow using its connection string:
 
 ```powershell
-$env:SQL_CONN = "Server=127.0.0.1,11433;Database=ExpenseDb;User ID=sa;Password=<disposable-password>;TrustServerCertificate=True;Encrypt=Falserd=<disposable-password>;TrustServerCertificate=True;Encrypt=False"
+$env:SQL_CONN = "Server=127.0.0.1,11433;Database=ExpenseDb;User ID=sa;Password=<disposable-password>;TrustServerCertificate=True;Encrypt=False"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-ui-tests.ps1 -Configuration Release -Port 11433
 Remove-Item Env:SQL_CONN
 ```
