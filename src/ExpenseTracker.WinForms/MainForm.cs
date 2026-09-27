@@ -414,13 +414,35 @@ namespace ExpenseTracker.WinForms
             filterPanel.Controls.Add(lblExpenseStatus);
             filterPanel.Controls.Add(summaryRow);
             filterPanel.Controls.Add(filters);
-            filterPanel.Height = filters.Height + summaryRowSpacing + summaryRow.Height + lblExpenseStatus.Height;
-
-            filterPanel.Resize += (s, e) =>
+            var updatingFilterLayout = false;
+            void UpdateFilterLayout()
             {
-                filters.Width = filterPanel.ClientSize.Width;
-                summaryRow.Width = filterPanel.ClientSize.Width;
-            };
+                if (updatingFilterLayout)
+                {
+                    return;
+                }
+
+                updatingFilterLayout = true;
+                try
+                {
+                    filters.Width = filterPanel.ClientSize.Width;
+                    filters.PerformLayout();
+                    var controlsBottom = filters.Controls
+                        .Cast<Control>()
+                        .Max(control => control.Bottom + control.Margin.Bottom);
+                    filters.Height = controlsBottom + filters.Padding.Bottom + 6;
+                    summaryRow.Location = new Point(0, filters.Bottom + summaryRowSpacing);
+                    summaryRow.Width = filterPanel.ClientSize.Width;
+                    filterPanel.Height = summaryRow.Bottom + lblExpenseStatus.Height;
+                }
+                finally
+                {
+                    updatingFilterLayout = false;
+                }
+            }
+
+            filterPanel.Resize += (s, e) => UpdateFilterLayout();
+            UpdateFilterLayout();
 
             btnApplyFilters.Click += async (s, e) => await LoadExpensesAsync();
             btnClearFilters.Click += async (s, e) =>
@@ -808,15 +830,26 @@ namespace ExpenseTracker.WinForms
                 (Name: "Note", Weight: 32, MinimumWidth: 140),
                 (Name: "CategoryName", Weight: 25, MinimumWidth: 130)
             };
-            var physicalWidth = Math.Max(
-                0,
-                dgvExpenses.ClientSize.Width - 2);
-            var availableWidth = physicalWidth;
-            var minimumWidthTotal = columns.Sum(column => column.MinimumWidth);
-            var remainingWidth = Math.Max(0, availableWidth - minimumWidthTotal);
-            var remainingWeight = columns.Sum(column => column.Weight);
+            var dpiScale = dgvExpenses.DeviceDpi / 96d;
+            var scaledColumns = columns.Select(column => (
+                column.Name,
+                column.Weight,
+                MinimumWidth: Math.Max(1, (int)Math.Ceiling(column.MinimumWidth / dpiScale))))
+                .ToArray();
+            var minimumContentWidth = scaledColumns.Sum(column => column.MinimumWidth);
+            var requiredClientWidth = minimumContentWidth + 2;
+            var requiredScrollBars = dgvExpenses.ClientSize.Width < requiredClientWidth
+                ? ScrollBars.Both
+                : ScrollBars.Vertical;
+            if (dgvExpenses.ScrollBars != requiredScrollBars)
+            {
+                dgvExpenses.ScrollBars = requiredScrollBars;
+            }
 
-            foreach (var columnInfo in columns)
+            var availableWidth = Math.Max(0, dgvExpenses.ClientSize.Width - 2);
+            var remainingWidth = Math.Max(0, availableWidth - minimumContentWidth);
+            var remainingWeight = scaledColumns.Sum(column => column.Weight);
+            foreach (var columnInfo in scaledColumns)
             {
                 if (!dgvExpenses.Columns.Contains(columnInfo.Name))
                 {
@@ -825,12 +858,21 @@ namespace ExpenseTracker.WinForms
 
                 var column = dgvExpenses.Columns[columnInfo.Name];
                 column.MinimumWidth = columnInfo.MinimumWidth;
+                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
                 var proportionalWidth = remainingWeight == 0
                     ? 0
                     : remainingWidth * columnInfo.Weight / remainingWeight;
                 column.Width = columnInfo.MinimumWidth + proportionalWidth;
                 remainingWidth -= proportionalWidth;
                 remainingWeight -= columnInfo.Weight;
+            }
+
+            foreach (DataGridViewColumn column in dgvExpenses.Columns)
+            {
+                if (!columns.Any(columnInfo => columnInfo.Name == column.Name))
+                {
+                    column.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                }
             }
         }
 

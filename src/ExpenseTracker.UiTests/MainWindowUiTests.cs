@@ -111,6 +111,7 @@ DELETE FROM Categories WHERE Name = @name;",
                     var totalRow = WaitForRow(grid, "TOTAL", shouldExist: true);
                     Assert.That(totalRow, Is.Not.Null, "The grid should finish loading before checking column widths.");
                     AssertGridRowFitsViewport(grid, totalRow!, (IntPtr)main.Properties.NativeWindowHandle.Value);
+                    CaptureCurrentWindowIfRequested(main);
                     CaptureDemoScreenshotIfRequested(main);
                     var windowHandle = (IntPtr)main.Properties.NativeWindowHandle.Value;
                     Assert.That(
@@ -639,6 +640,19 @@ DELETE FROM Categories WHERE Name = @name;",
             CaptureWindowToFile(main, fullScreenshotPath);
         }
 
+        private static void CaptureCurrentWindowIfRequested(AutomationElement main)
+        {
+            var screenshotPath = Environment.GetEnvironmentVariable("EXPENSE_TRACKER_LAYOUT_SCREENSHOT_PATH");
+            if (string.IsNullOrWhiteSpace(screenshotPath))
+            {
+                return;
+            }
+
+            var fullScreenshotPath = Path.GetFullPath(screenshotPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullScreenshotPath)!);
+            CaptureWindowToFile(main, fullScreenshotPath);
+        }
+
         private static void CaptureWindowToFile(AutomationElement main, string path)
         {
             var dpiContext = new IntPtr(-4);
@@ -708,6 +722,18 @@ DELETE FROM Categories WHERE Name = @name;",
 
             Assert.That(visibleCells, Is.EqualTo(4),
                 $"All four expense columns should be visible in the grid. Grid={gridBounds}");
+            var horizontalScrollBars = grid.FindAllDescendants(
+                    condition => condition.ByControlType(ControlType.ScrollBar))
+                .Where(scrollBar =>
+                {
+                    var bounds = Rectangle.Round(scrollBar.BoundingRectangle);
+                    return bounds.Width > bounds.Height && bounds.Height > 0;
+                })
+                .ToArray();
+            Assert.That(
+                horizontalScrollBars,
+                Is.Empty,
+                $"All expense columns should fit without a horizontal scrollbar. Grid={gridBounds}; visible cell widths={string.Join(",", row.Cells.Select(cell => Rectangle.Round(cell.BoundingRectangle).Width))}; visible UIA scrollbars={string.Join("; ", grid.FindAllDescendants(condition => condition.ByControlType(ControlType.ScrollBar)).Select(scrollBar => $"{scrollBar.Name}:{Rectangle.Round(scrollBar.BoundingRectangle)}"))}.");
             var rightmostCell = Rectangle.Round(row.Cells[3].BoundingRectangle);
             var scrollbarWidth = (int)Math.Ceiling(SystemInformation.VerticalScrollBarWidth * dpiScale);
             Assert.That(
@@ -728,6 +754,8 @@ DELETE FROM Categories WHERE Name = @name;",
                 Assert.That(buttonBounds.Height, Is.GreaterThan(0), $"'{automationId}' should not be clipped.");
                 Assert.That(Rectangle.Intersect(windowBounds, buttonBounds), Is.EqualTo(buttonBounds),
                     $"'{automationId}' should remain inside the window after layout.");
+                Assert.That(Rectangle.Intersect(filtersBounds, buttonBounds), Is.EqualTo(buttonBounds),
+                    $"'{automationId}' should fit within the filter controls area.");
                 Assert.That(Rectangle.Intersect(summaryBounds, buttonBounds), Is.EqualTo(Rectangle.Empty),
                     $"'{automationId}' should not overlap the month summary row. Button={buttonBounds}; month={summaryBounds}; filters={filtersBounds}.");
             }

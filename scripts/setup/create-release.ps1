@@ -59,37 +59,22 @@ try {
     Set-Content -Path (Join-Path $stagingRoot "docker-compose.yml") -Value $bundleCompose -Encoding ASCII
     New-Item (Join-Path $stagingRoot "data") -ItemType Directory -Force | Out-Null
     Copy-Item (Join-Path $repoRoot "data\init.sql") (Join-Path $stagingRoot "data\init.sql")
-    $bundleSetupDirectory = Join-Path $stagingRoot "scripts\setup"
-    New-Item $bundleSetupDirectory -ItemType Directory -Force | Out-Null
-    Copy-Item (Join-Path $repoRoot "scripts\setup\start-dev-fixed.ps1") (Join-Path $bundleSetupDirectory "start-dev-fixed.ps1")
+        $bundleSetupDirectory = Join-Path $stagingRoot "scripts\setup"
+        New-Item $bundleSetupDirectory -ItemType Directory -Force | Out-Null
+        Copy-Item (Join-Path $repoRoot "scripts\setup\credential-protection.ps1") (Join-Path $bundleSetupDirectory "credential-protection.ps1")
+        Copy-Item (Join-Path $repoRoot "scripts\setup\setup-all.ps1") (Join-Path $bundleSetupDirectory "setup-all.ps1")
+        Copy-Item (Join-Path $repoRoot "scripts\setup\start-dev-fixed.ps1") (Join-Path $bundleSetupDirectory "start-dev-fixed.ps1")
 
-    $bundleProjectName = "expense-tracker-v" + ($Version -replace '[^a-zA-Z0-9_-]', '-').ToLowerInvariant()
+        $bundleProjectName = "expense-tracker-v" + ($Version -replace '[^a-zA-Z0-9_-]', '-').ToLowerInvariant()
     @'
-function ConvertTo-PlainText([Security.SecureString]$SecureValue) {
-    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureValue)
-    try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
-    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
-}
-
-$ErrorActionPreference = "Stop"
-$root = $PSScriptRoot
-$env:COMPOSE_PROJECT_NAME = "__PROJECT_NAME__"
-$saPassword = ConvertTo-PlainText (Read-Host "Enter a strong local SQL Server SA password" -AsSecureString)
-if ($saPassword.Length -lt 12 -or
-    $saPassword -notmatch '[A-Z]' -or
-    $saPassword -notmatch '[a-z]' -or
-    $saPassword -notmatch '[0-9]' -or
-    $saPassword -notmatch '[^a-zA-Z0-9]') {
-    throw "Use at least 12 characters with uppercase, lowercase, a number, and a symbol."
-}
-
-$env:SA_PASSWORD = $saPassword
-& (Join-Path $root "scripts\setup\start-dev-fixed.ps1") -saPassword $saPassword
-if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Database startup failed." }
-
-Remove-Item Env:SA_PASSWORD -ErrorAction SilentlyContinue
-Start-Process (Join-Path $root "app\ExpenseTracker.WinForms.exe") -WorkingDirectory (Join-Path $root "app")
-'@ | ForEach-Object { $_.Replace("__PROJECT_NAME__", $bundleProjectName) } |
+    $ErrorActionPreference = "Stop"
+    $root = $PSScriptRoot
+    $env:COMPOSE_PROJECT_NAME = "__PROJECT_NAME__"
+    $setupScript = Join-Path $root "scripts\setup\setup-all.ps1"
+    & $setupScript -RunApp:$false
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Database startup failed." }
+    Start-Process (Join-Path $root "app\ExpenseTracker.WinForms.exe") -WorkingDirectory (Join-Path $root "app")
+    '@ | ForEach-Object { $_.Replace("__PROJECT_NAME__", $bundleProjectName) } |
         Set-Content (Join-Path $stagingRoot "Run-ExpenseTracker.ps1") -Encoding ASCII
 
     @'
@@ -102,11 +87,12 @@ if errorlevel 1 pause
 Expense Tracker review bundle
 
 1. Install and start Docker Desktop.
-2. Double-click Run-ExpenseTracker.bat and enter a strong local SQL Server password when prompted.
-3. The first run downloads SQL Server and creates ExpenseDb with sample categories.
-4. Later runs reuse the persistent Docker volume; ExpenseDb is not overwritten.
+2. Double-click Run-ExpenseTracker.bat.
+3. The first run generates a local SQL Server admin credential and protects it with Windows DPAPI for the current Windows user.
+4. Later runs reuse the protected credential and persistent Docker volume; ExpenseDb is not overwritten.
 
 The app is self-contained and does not require the .NET SDK.
+Docker Desktop is required to run SQL Server.
 The Docker volume is persistent. Do not remove it unless you intend to delete its database.
 '@ | Set-Content (Join-Path $stagingRoot "README.txt") -Encoding ASCII
 

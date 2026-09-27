@@ -78,7 +78,7 @@ flowchart LR
 
 The CSV export uses invariant decimal/date formats, quotes CSV special characters, and prefixes formula-leading fields to reduce spreadsheet formula injection risk. Grid dates are inclusive; monthly totals deliberately ignore the grid's date range while honoring the selected category.
 
-The form resizes to the available screen area. The screenshot above is the latest UI capture supplied for this portfolio; it shows the filter actions fully visible alongside the monthly summary and expense grid.
+The form resizes to the available screen area. The screenshot above was captured from the running WinForms app and shows the filter actions fully visible alongside the monthly summary and expense grid. The grid uses DPI-aware column sizing to fill the available viewport without an unnecessary horizontal scrollbar; the UI regression checks this at the default size and 800x600.
 
 ### Engineering decisions
 
@@ -105,7 +105,7 @@ Integration tests default to the local Docker service and allow only `ExpenseDb`
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1
 ```
 
-UI tests require an interactive Windows desktop. By default the UI test script starts/preserves the local Docker database and securely prompts for its admin password; it removes the uniquely named test category and its expenses during teardown. For isolated QA, use a disposable SQL Server on another loopback port, set `SQL_CONN`, and pass `-Port`; this mode skips repository database setup and rejects non-local hosts, another database, or port 1433. See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for an example. GitHub Actions builds and runs unit tests on Windows and runs repository integration tests against a disposable SQL Server container on Ubuntu; interactive UI tests remain local/manual.
+UI tests require an interactive Windows desktop and a clean, disposable `ExpenseDb`: the CRUD flow checks exact row counts, creates test data, and removes its uniquely named category and expenses during teardown. The default test mode uses the regular local Docker database; use a disposable SQL Server on another loopback port for a repeatable, isolated full UI run. That mode sets `SQL_CONN`, passes `-Port`, skips repository database setup, and rejects non-local hosts, another database, or port 1433. See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for details. GitHub Actions builds and runs unit tests on Windows and runs repository integration tests against a disposable SQL Server container on Ubuntu; interactive UI tests remain local/manual.
 
 ## Release bundle
 
@@ -115,17 +115,17 @@ Download the current [Expense Tracker v0.3.10 Windows x64 release](https://githu
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.11"
 ```
 
-The generated ZIP is ignored by Git because it is a large build artifact. Release creation refuses a dirty worktree and includes the full source commit in `BUILD-INFO.txt`, so the bundle maps to one committed source state. It prints a SHA-256 checksum after packaging; record that value in the release notes and verify it after download. The bundle prompts for a local SQL Server password, creates the restricted `ExpenseApp` login, and contains no app/database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass and CI is green for that source commit.
+The generated ZIP is ignored by Git because it is a large build artifact. Release creation refuses a dirty worktree and includes the full source commit in `BUILD-INFO.txt`, so the bundle maps to one committed source state. It prints a SHA-256 checksum after packaging; record that value in the release notes and verify it after download. Bundles generated from the current setup scripts create and protect the local SQL Server admin credential with Windows DPAPI, provision the restricted `ExpenseApp` login, and contain no database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass and CI is green for that source commit.
 
-The currently published `v0.3.10` bundle was built from source commit `ca858d1`. Its SHA-256 is `EB718C9D56F1F59BC089273360A7176BCED23F06D57A10D8B19BD64A2C8EF4F6`. Build a new version after source changes before distributing them as a downloadable release.
+The currently published `v0.3.10` bundle was built from source commit `ca858d1`, before the latest setup and UI improvements; its SHA-256 is `EB718C9D56F1F59BC089273360A7176BCED23F06D57A10D8B19BD64A2C8EF4F6`. The published bundle retains its password-prompt behavior. Build and verify a new version from the updated source before distributing these newer changes.
 
 ## Troubleshooting
 
 - Docker is not running: open Docker Desktop.
 - Port 1433 is occupied: stop the conflicting SQL Server or change the port consistently in `docker-compose.yml` and the connection string.
 - SQL Server is not ready: inspect `docker logs expense-mssql`.
-- If an existing `expense-mssql` container still shows `0.0.0.0:1433` or `[::]:1433`, rerun setup with the same SA password to apply the current loopback-only Compose binding, then verify `docker ps`. Normal setup preserves the named database volume; never use `docker compose down -v` for this.
-- If the app cannot connect, run setup again with the same SA password and check `docker compose logs mssql`. Do not use `docker compose down -v` as a troubleshooting step: it permanently removes local database data.
+- If an existing `expense-mssql` container still shows `0.0.0.0:1433` or `[::]:1433`, normal setup can reuse the saved `ExpenseApp` login to start the app but cannot update an existing container's configuration without its SA credential. Provide the existing SA password with `-saPassword` for this administrative setup path; then verify `docker ps`. Normal setup preserves the named database volume; never use `docker compose down -v` for this.
+- If the app cannot connect, run setup again to reuse the saved local credentials and check `docker compose logs mssql`. For an existing volume that has no saved SA credential, setup uses the protected `ExpenseApp` login for normal startup; provide the existing SA password only for administrative work such as migrations. Do not use `docker compose down -v` as a troubleshooting step: it permanently removes local database data.
 - If the DPAPI app credential cannot be decrypted, preserve the database volume. After confirming the SA password and current Windows user, remove only `%LOCALAPPDATA%\ExpenseTracker\app-db-password.bin` and rerun setup to create a replacement restricted login; this does not reset expense data.
 
 ## Structure
@@ -148,7 +148,7 @@ The currently published `v0.3.10` bundle was built from source commit `ca858d1`.
 - LocalDB/MDF fallback remains for compatibility; Docker is the documented primary path.
 - The app supports create/read/update/delete for expenses and create/read for categories; it has no category edit/delete or reporting dashboard.
 - Setup uses the local SQL Server SA credential only to provision the database and restricted `ExpenseApp` login. The app uses `ExpenseApp`, not the SA account. This local credential model is still not a production security boundary.
-- The screenshot is authentic application output from a disposable demo database; no screen recording is included.
+- The README screenshot is a UI capture from the running app; it is not evidence that the shown data came from a disposable database. No screen recording is included.
 - UI automation requires an interactive Windows desktop and is not run by GitHub-hosted CI. SQL integration tests run separately against an ephemeral SQL Server container.
 - Runtime diagnostic logs are written to `%LOCALAPPDATA%\ExpenseTracker\logs\application.log`; they record operation, exception type, and SQL error number, not the connection string or password.
 
