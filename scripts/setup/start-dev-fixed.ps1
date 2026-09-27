@@ -4,11 +4,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
+. (Join-Path $PSScriptRoot "credential-protection.ps1")
 if ([string]::IsNullOrWhiteSpace($saPassword)) {
     $saPassword = [Environment]::GetEnvironmentVariable("SA_PASSWORD", "Process")
 }
 if ([string]::IsNullOrWhiteSpace($saPassword)) {
-    throw "Set SA_PASSWORD or run setup-all.ps1, which securely prompts for it."
+    throw "Set SA_PASSWORD or run setup-all.ps1, which securely generates and stores the local admin credential."
 }
 $sqlPortValue = [Environment]::GetEnvironmentVariable("EXPENSE_TRACKER_SQL_PORT", "Process")
 if ([string]::IsNullOrWhiteSpace($sqlPortValue)) {
@@ -22,92 +23,6 @@ if (-not [int]::TryParse($sqlPortValue, [ref]$sqlPort) -or $sqlPort -lt 1 -or $s
 $docker = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $docker) {
     throw "Docker CLI not found. Install Docker Desktop and ensure docker is on PATH."
-}
-
-if (-not ("ExpenseTracker.Security.DpapiUserScope" -as [type])) {
-    Add-Type -TypeDefinition @'
-using System;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-
-namespace ExpenseTracker.Security
-{
-    public static class DpapiUserScope
-    {
-        [StructLayout(LayoutKind.Sequential)]
-        private struct DataBlob
-        {
-            public int Length;
-            public IntPtr Data;
-        }
-
-        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern bool CryptProtectData(
-            ref DataBlob input,
-            string description,
-            IntPtr optionalEntropy,
-            IntPtr reserved,
-            IntPtr prompt,
-            uint flags,
-            out DataBlob output);
-
-        [DllImport("crypt32.dll", SetLastError = true)]
-        private static extern bool CryptUnprotectData(
-            ref DataBlob input,
-            IntPtr description,
-            IntPtr optionalEntropy,
-            IntPtr reserved,
-            IntPtr prompt,
-            uint flags,
-            out DataBlob output);
-
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr LocalFree(IntPtr memory);
-
-        public static byte[] Protect(byte[] input)
-        {
-            return Transform(input, true);
-        }
-
-        public static byte[] Unprotect(byte[] input)
-        {
-            return Transform(input, false);
-        }
-
-        private static byte[] Transform(byte[] input, bool protect)
-        {
-            var pinned = GCHandle.Alloc(input, GCHandleType.Pinned);
-            var inputBlob = new DataBlob { Length = input.Length, Data = pinned.AddrOfPinnedObject() };
-            DataBlob outputBlob;
-            try
-            {
-                var succeeded = protect
-                    ? CryptProtectData(ref inputBlob, null, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0, out outputBlob)
-                    : CryptUnprotectData(ref inputBlob, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0, out outputBlob);
-                if (!succeeded)
-                {
-                    throw new Win32Exception(Marshal.GetLastWin32Error());
-                }
-
-                var output = new byte[outputBlob.Length];
-                try
-                {
-                    Marshal.Copy(outputBlob.Data, output, 0, output.Length);
-                }
-                finally
-                {
-                    LocalFree(outputBlob.Data);
-                }
-                return output;
-            }
-            finally
-            {
-                pinned.Free();
-            }
-        }
-    }
-}
-'@
 }
 
 $originalSaPassword = [Environment]::GetEnvironmentVariable("SA_PASSWORD", "Process")
@@ -163,45 +78,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "Database schema and safe migrations applied from data/init.sql; existing rows were preserved."
 
-$credentialFile = [Environment]::GetEnvironmentVariable("EXPENSE_TRACKER_CREDENTIAL_FILE", "Process")
-if ([string]::IsNullOrWhiteSpace($credentialFile)) {
-    $credentialFolder = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "ExpenseTracker"
-    $credentialFile = Join-Path $credentialFolder "app-db-password.bin"
-}
-else {
-    $credentialFile = [IO.Path]::GetFullPath($credentialFile)
-    $credentialFolder = [IO.Path]::GetDirectoryName($credentialFile)
-    if ([string]::IsNullOrWhiteSpace($credentialFolder)) {
-        throw "EXPENSE_TRACKER_CREDENTIAL_FILE must include a directory path."
-    }
-}
+$credentialFile = Get-ExpenseCredentialFile
 if (Test-Path $credentialFile) {
     try {
-        $protectedPassword = [IO.File]::ReadAllBytes($credentialFile)
-        $appPasswordBytes = [ExpenseTracker.Security.DpapiUserScope]::Unprotect($protectedPassword)
-        $appPassword = [Text.Encoding]::UTF8.GetString($appPasswordBytes)
+        $appPassword = Read-ExpenseProtectedSecret $credentialFile
     }
     catch {
         throw "Could not read this Windows user's protected app credential. Preserve the database volume and credential file; investigate the local Windows profile before recovery."
     }
 }
 else {
-    $randomBytes = New-Object byte[] 24
-    $randomGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        $randomGenerator.GetBytes($randomBytes)
-    }
-    finally {
-        $randomGenerator.Dispose()
-    }
-    $passwordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-    $appPassword = "Aa7" + (-join ($randomBytes | ForEach-Object {
-        $passwordAlphabet[[int]$_ % $passwordAlphabet.Length]
-    }))
-    $protectedPassword = [ExpenseTracker.Security.DpapiUserScope]::Protect(
-        [Text.Encoding]::UTF8.GetBytes($appPassword))
-    New-Item $credentialFolder -ItemType Directory -Force | Out-Null
-    [IO.File]::WriteAllBytes($credentialFile, $protectedPassword)
+    $appPassword = New-ExpensePassword
+    Save-ExpenseProtectedSecret $credentialFile $appPassword
 }
 
 $provisionSql = @"

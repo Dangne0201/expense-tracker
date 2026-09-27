@@ -286,25 +286,31 @@ namespace ExpenseTracker.WinForms
 
         private Panel CreateExpenseFilterPanel()
         {
+            const int filterControlsHeight = 136;
+            const int summaryRowSpacing = 5;
             var filterPanel = new Panel
             {
                 Name = "expenseFilterPanel",
                 Dock = DockStyle.Top,
-                Height = 126,
                 AccessibleName = "Expense filters"
             };
             var filters = new FlowLayoutPanel
             {
                 Name = "expenseFilters",
-                Location = new Point(0, 0),
-                Height = 66,
+                Location = Point.Empty,
+                Height = filterControlsHeight,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                AutoScroll = true,
+                AutoScroll = false,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 Padding = new Padding(4)
             };
-            filterPanel.Resize += (s, e) => filters.Width = filterPanel.ClientSize.Width;
+            var summaryRow = new Panel
+            {
+                Location = new Point(0, filterControlsHeight + summaryRowSpacing),
+                Height = 32,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
 
             dtpFilterFrom = new DateTimePicker
             {
@@ -378,7 +384,7 @@ namespace ExpenseTracker.WinForms
             dtpSummaryMonth = new DateTimePicker
             {
                 Name = "dtpSummaryMonth",
-                Location = new Point(8, 73),
+                Location = new Point(8, 3),
                 Width = 130,
                 Format = DateTimePickerFormat.Custom,
                 CustomFormat = "MMMM yyyy",
@@ -390,7 +396,7 @@ namespace ExpenseTracker.WinForms
             {
                 Name = "lblMonthTotal",
                 AutoSize = true,
-                Location = new Point(148, 78),
+                Location = new Point(148, 8),
                 Text = "Month total: --",
                 AccessibleDescription = "Total expense amount for the selected month and category."
             };
@@ -403,10 +409,18 @@ namespace ExpenseTracker.WinForms
                 Text = "Ready",
                 AccessibleDescription = "Shows the current expense loading, empty, or result status."
             };
-            filterPanel.Controls.Add(filters);
-            filterPanel.Controls.Add(dtpSummaryMonth);
-            filterPanel.Controls.Add(lblMonthTotal);
+            summaryRow.Controls.Add(dtpSummaryMonth);
+            summaryRow.Controls.Add(lblMonthTotal);
             filterPanel.Controls.Add(lblExpenseStatus);
+            filterPanel.Controls.Add(summaryRow);
+            filterPanel.Controls.Add(filters);
+            filterPanel.Height = filters.Height + summaryRowSpacing + summaryRow.Height + lblExpenseStatus.Height;
+
+            filterPanel.Resize += (s, e) =>
+            {
+                filters.Width = filterPanel.ClientSize.Width;
+                summaryRow.Width = filterPanel.ClientSize.Width;
+            };
 
             btnApplyFilters.Click += async (s, e) => await LoadExpensesAsync();
             btnClearFilters.Click += async (s, e) =>
@@ -796,7 +810,7 @@ namespace ExpenseTracker.WinForms
             };
             var physicalWidth = Math.Max(
                 0,
-                dgvExpenses.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 2);
+                dgvExpenses.ClientSize.Width - 2);
             var availableWidth = physicalWidth;
             var minimumWidthTotal = columns.Sum(column => column.MinimumWidth);
             var remainingWidth = Math.Max(0, availableWidth - minimumWidthTotal);

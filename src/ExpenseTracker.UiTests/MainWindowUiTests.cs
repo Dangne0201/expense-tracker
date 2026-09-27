@@ -106,7 +106,19 @@ DELETE FROM Categories WHERE Name = @name;",
                     var main = app.GetMainWindow(automation, TimeSpan.FromSeconds(20));
                     Assert.IsNotNull(main, "Main window should appear after app launch");
                     Assert.That(main!.Title, Is.EqualTo("Expense Tracker (WinForms)"));
+                    AssertFilterControlsFit(main);
+                    var grid = Find(main, "dgvExpenses").AsDataGridView();
+                    var totalRow = WaitForRow(grid, "TOTAL", shouldExist: true);
+                    Assert.That(totalRow, Is.Not.Null, "The grid should finish loading before checking column widths.");
+                    AssertGridRowFitsViewport(grid, totalRow!, (IntPtr)main.Properties.NativeWindowHandle.Value);
                     CaptureDemoScreenshotIfRequested(main);
+                    var windowHandle = (IntPtr)main.Properties.NativeWindowHandle.Value;
+                    Assert.That(
+                        NativeMethods.SetWindowPos(windowHandle, IntPtr.Zero, 20, 20, 800, 600, 0x0004 | 0x0010),
+                        Is.True,
+                        "The form should resize to a representative narrow desktop window.");
+                    System.Threading.Thread.Sleep(250);
+                    AssertFilterControlsFit(main);
                 }
                 finally
                 {
@@ -141,6 +153,7 @@ DELETE FROM Categories WHERE Name = @name;",
                 {
                     var main = app.GetMainWindow(automation, TimeSpan.FromSeconds(20));
                     Assert.That(main, Is.Not.Null, "Main window should appear before CRUD automation");
+                    AssertFilterControlsFit(main!);
                     Assert.That(Find(main!, "btnExportExpenses").Name, Does.Contain("Export"));
                     Assert.That(Find(main!, "txtAmount").Name, Is.EqualTo("Expense amount"));
                     Assert.That(Find(main!, "dtpFilterFrom").Name, Is.EqualTo("Filter expenses from date"));
@@ -151,6 +164,7 @@ DELETE FROM Categories WHERE Name = @name;",
                         Is.True,
                         "The form should resize to a representative narrow desktop window.");
                     System.Threading.Thread.Sleep(250);
+                    AssertFilterControlsFit(main!);
                     var narrowWindowBounds = Rectangle.Round(main!.BoundingRectangle);
                     foreach (var automationId in new[] { "dgvExpenses", "btnAddExpense", "txtNote" })
                     {
@@ -694,6 +708,29 @@ DELETE FROM Categories WHERE Name = @name;",
 
             Assert.That(visibleCells, Is.EqualTo(4),
                 $"All four expense columns should be visible in the grid. Grid={gridBounds}");
+            var rightmostCell = Rectangle.Round(row.Cells[3].BoundingRectangle);
+            var scrollbarWidth = (int)Math.Ceiling(SystemInformation.VerticalScrollBarWidth * dpiScale);
+            Assert.That(
+                gridBounds.Right - rightmostCell.Right,
+                Is.LessThanOrEqualTo(scrollbarWidth + 4),
+                $"The last column should fill the grid, leaving only its vertical scrollbar gutter. Grid={gridBounds}; last cell={rightmostCell}");
+        }
+
+        private static void AssertFilterControlsFit(AutomationElement main)
+        {
+            var windowBounds = Rectangle.Round(main.BoundingRectangle);
+            var summaryBounds = Rectangle.Round(Find(main, "dtpSummaryMonth").BoundingRectangle);
+            var filtersBounds = Rectangle.Round(Find(main, "expenseFilters").BoundingRectangle);
+            foreach (var automationId in new[] { "btnClearFilters", "btnExportExpenses" })
+            {
+                var buttonBounds = Rectangle.Round(Find(main, automationId).BoundingRectangle);
+                Assert.That(buttonBounds.Width, Is.GreaterThan(0), $"'{automationId}' should be visible.");
+                Assert.That(buttonBounds.Height, Is.GreaterThan(0), $"'{automationId}' should not be clipped.");
+                Assert.That(Rectangle.Intersect(windowBounds, buttonBounds), Is.EqualTo(buttonBounds),
+                    $"'{automationId}' should remain inside the window after layout.");
+                Assert.That(Rectangle.Intersect(summaryBounds, buttonBounds), Is.EqualTo(Rectangle.Empty),
+                    $"'{automationId}' should not overlap the month summary row. Button={buttonBounds}; month={summaryBounds}; filters={filtersBounds}.");
+            }
         }
 
         private static FlaUI.Core.AutomationElements.DataGridViewCell FindNoteCell(

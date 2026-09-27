@@ -9,7 +9,7 @@
 
 The app helps a single local user track expenses by category, amount, date, and note. It supports adding categories and creating, viewing, editing, and deleting expenses; date-range and category filters, monthly totals, filtered totals, and CSV export help review spending.
 
-![Expense Tracker running with sample expenses](artifacts/expense-tracker-demo.png)
+![Latest Expense Tracker UI: category list, date and category filters, monthly total, and expense grid](artifacts/expense-tracker-demo.png)
 
 ## What this project demonstrates
 
@@ -30,19 +30,21 @@ This is intentionally a small desktop portfolio project, not a web service or a 
 
 ## Quick start
 
-From the repository root, run setup. It prompts for the local SQL Server SA password without echoing it:
+From the repository root, run setup:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1
 ```
 
-To start Docker and initialize the database without launching the app:
+To start Docker and initialize the database without launching the app (using the saved admin credential when available):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1 -RunApp:$false
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& .\scripts\setup\setup-all.ps1 -RunApp:`$false"
 ```
 
-The setup script starts SQL Server without force-recreating the container, waits for SQL readiness, and reapplies the idempotent [data/init.sql](data/init.sql) schema/migration script on every run. The script preserves existing rows and refuses to apply the data-integrity migration if legacy category names are blank/space-padded or duplicate ignoring case, or if existing expenses have non-positive amounts. Resolve these cases deliberately before retrying; setup never deletes existing data to force a migration. SQL Server binds to loopback port 1433 and uses container name `expense-mssql` by default; set `EXPENSE_TRACKER_SQL_PORT` and optionally `EXPENSE_TRACKER_CONTAINER_NAME` in the process environment to run an isolated local instance. A small root startup step fixes ownership on the Docker-managed data directory when needed, then launches `sqlservr` as the non-root `mssql` user. Setup creates or verifies a restricted `ExpenseApp` SQL login, builds, and optionally launches the WinForms app. The application credential is randomly generated and protected with Windows DPAPI for the current user at `%LOCALAPPDATA%\ExpenseTracker\app-db-password.bin`; the connection string is passed only to the app process. The SA password is used only by local setup and is not written to a batch file, connection file, or user-level environment variable. Use the same SA password on later runs. If the existing volume rejects it, stop and recover the correct password; do not delete the volume as a troubleshooting shortcut.
+The setup script starts SQL Server without force-recreating the container and, when it has the local admin credential, applies the idempotent [data/init.sql](data/init.sql) schema/migration script. The script preserves existing rows and refuses to apply the data-integrity migration if legacy category names are blank/space-padded or duplicate ignoring case, or if existing expenses have non-positive amounts. Resolve these cases deliberately before retrying; setup never deletes existing data to force a migration. SQL Server binds to loopback port 1433 and uses container name `expense-mssql` by default; set `EXPENSE_TRACKER_SQL_PORT` and optionally `EXPENSE_TRACKER_CONTAINER_NAME` in the process environment to run an isolated local instance. A small root startup step fixes ownership on the Docker-managed data directory when needed, then launches `sqlservr` as the non-root `mssql` user. Setup creates or verifies a restricted `ExpenseApp` SQL login, builds, and optionally launches the WinForms app.
+
+On first setup, the script generates the SQL Server SA password automatically and protects it with Windows DPAPI for the current Windows user at `%LOCALAPPDATA%\ExpenseTracker\sql-admin-password.bin`. The application credential is separately generated and protected at `%LOCALAPPDATA%\ExpenseTracker\app-db-password.bin`; the app connection string is passed only to the app process. On later runs from the same Windows profile, setup reuses the saved local admin credential and applies migrations without asking for a password. If a pre-existing container has no locally saved admin credential, ordinary app startup reuses the protected `ExpenseApp` login and does not change or recreate the database; provide the existing SA password explicitly with `-saPassword` only when an admin operation such as applying migrations is needed. These local credentials are not committed to the repository and are not intended as production secrets. If SQL Server rejects an admin credential, stop and recover the correct credential; do not delete the volume as a troubleshooting shortcut.
 
 The application login is limited to `db_datareader` and `db_datawriter` in `ExpenseDb` instead of SQL Server administrator access. Category names are trimmed, non-empty, and unique ignoring case; SQL Server enforces the rule as well as the UI. The database port is bound to `127.0.0.1`, not exposed to other machines on the network. The SQL Server volume is persistent. Setup preserves existing database contents and does not repair permissions or recreate the volume automatically.
 
@@ -76,7 +78,7 @@ flowchart LR
 
 The CSV export uses invariant decimal/date formats, quotes CSV special characters, and prefixes formula-leading fields to reduce spreadsheet formula injection risk. Grid dates are inclusive; monthly totals deliberately ignore the grid's date range while honoring the selected category.
 
-The form resizes to the available screen area. The screenshot above was captured from the running WinForms app against an isolated, disposable SQL Server database; its sample expenses were entered through the UI test flow.
+The form resizes to the available screen area. The screenshot above is the latest UI capture supplied for this portfolio; it shows the filter actions fully visible alongside the monthly summary and expense grid.
 
 ### Engineering decisions
 
@@ -87,7 +89,7 @@ The form resizes to the available screen area. The screenshot above was captured
 
 ## Run again
 
-Run `setup-all.ps1` again with the same SA password to start the service and app. Starting Docker Compose alone will not pass the process-scoped connection to a manually launched app.
+Run `setup-all.ps1` again to start the service and app. Starting Docker Compose alone will not pass the process-scoped connection to a manually launched app.
 
 ## Tests
 

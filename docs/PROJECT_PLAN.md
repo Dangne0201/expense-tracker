@@ -16,8 +16,9 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - Windows GitHub Actions workflow for restore/build/unit tests plus an Ubuntu disposable-SQL integration job.
 - Reviewer-oriented setup, demo steps, architecture notes, and documented security limitations.
 - Responsive window sizing, current-culture currency formatting, and a clear guard against deleting the total row.
-- DataGridView columns sized with fill weights so the category column remains in the viewport when the window is resized.
-- UI checks for visible grid-cell bounds and screenshot capture cropped to the app window.
+- DataGridView columns sized to use the available viewport width without counting the vertical scrollbar twice.
+- Filter controls wrap to a dedicated row when needed; Clear and Export CSV remain fully visible above the month summary at the default and 800x600 window sizes.
+- UI checks for visible grid-cell bounds, column fill, filter-button clipping/overlap at default and 800x600 sizes, and screenshot capture cropped to the app window.
 - A locally generated, ignored self-contained Windows bundle that records its source commit and tracked changes in `BUILD-INFO.txt`.
 - A disposable-database UI-test mode that does not run setup against the developer's persistent database and cleans up its uniquely named test category.
 - A platform-neutral `ExpenseTracker.Core` project for validation, summaries, and the SQL repository, referenced by the WinForms UI.
@@ -40,7 +41,7 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - Migration failure tests against disposable SQL Server 2019 confirmed that duplicate, blank, and non-positive legacy data produce clear diagnostics, preserve existing rows, and roll back migration DDL.
 - The setup script completed twice against an isolated SQL Server 2019 Compose project; it preserved the disposable database, reused the DPAPI-protected credential, and configured the `ExpenseApp` login. The disposable container, volume, and credential file were removed afterward.
 - The `v0.3.10` bundle was built from commit `ca858d1`; its metadata, loopback Compose configuration, and startup files were inspected, and both UI workflows passed against its executable. The ignored ZIP is 52,987,384 bytes; SHA-256 is `EB718C9D56F1F59BC089273360A7176BCED23F06D57A10D8B19BD64A2C8EF4F6`.
-- The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
+- The README demo image was refreshed with the latest UI screenshot supplied by the project owner. Focused UI regression passed for the filter controls at default and 800x600 sizes, and verified that all four expense columns remain visible and the last column fills the grid viewport. The supplied screenshot is documented as a UI capture; it is not represented as evidence of a disposable-database run.
 - GitHub Actions `.NET` run [#10](https://github.com/Dangne0201/expense-tracker/actions/runs/36310319077) passed for source commit `94e3941`: Windows build/format/unit and Ubuntu disposable SQL integration. This run predates the current uncommitted changes; rerun CI after committing them. UI automation remains local/manual because it requires an interactive Windows desktop.
 - The existing `expense-mssql` container uses the loopback-only port binding; disposable QA did not alter its persistent volume.
 - GitHub Release [v0.3.10](https://github.com/Dangne0201/expense-tracker/releases/tag/v0.3.10) was published with the verified Windows x64 bundle built from `ca858d1`.
