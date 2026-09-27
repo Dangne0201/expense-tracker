@@ -51,7 +51,7 @@ try {
     Set-Content -Path (Join-Path $stagingRoot "BUILD-INFO.txt") -Value $buildInfo -Encoding ASCII
 
     $bundleCompose = Get-Content (Join-Path $repoRoot "docker-compose.yml") -Raw
-    $bundleCompose = $bundleCompose -replace '(?m)^\s*container_name:\s*expense-mssql\s*\r?\n', ''
+    $bundleCompose = $bundleCompose -replace '(?m)^\s*container_name:.*\r?\n', ''
     $bundleCompose = $bundleCompose.Replace(
         '127.0.0.1:1433:1433',
         '127.0.0.1:${EXPENSE_TRACKER_SQL_PORT:-1433}:1433')
