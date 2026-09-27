@@ -91,21 +91,17 @@ Integration tests default to the local Docker service and allow only `ExpenseDb`
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1
 ```
 
-UI tests require an interactive Windows desktop. The UI test script securely prompts for the database admin password, preserves/starts the local Docker database, passes the app connection only to the current test process, and builds the requested configuration. See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for prerequisites, rollback behavior, and manual QA. GitHub Actions runs restore, build, and database-independent tests only; wait for a successful workflow run before describing CI as green.
+UI tests require an interactive Windows desktop. By default the UI test script starts/preserves the local Docker database and securely prompts for its admin password; it removes the uniquely named test category and its expenses during teardown. For isolated QA, use a disposable SQL Server on another loopback port, set `SQL_CONN`, and pass `-Port`; this mode skips repository database setup and rejects non-local hosts, another database, or port 1433. See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) for an example. GitHub Actions runs restore, build, and database-independent tests only.
 
 ## Release bundle
 
-Only the latest review bundle is kept in `artifacts`: [expense-tracker-v0.3.8-win-x64.zip](artifacts/expense-tracker-v0.3.8-win-x64.zip). It prompts for a local SA password and provisions the restricted `ExpenseApp` login; it does not include an application or database password. Bundle setup, credential creation/reuse, integration tests, and UI tests passed on this Windows profile with an isolated temporary Docker project/volume and a separate DPAPI credential file. The bundle predates the latest source UI layout adjustment, so rebuild and rerun its UI flow before distributing it as a build of the current source.
-
-Earlier release ZIPs, including bundles with a hard-coded example database credential, were removed from the current source tree. They may still exist in Git history; do not restore or distribute them. If any real credential was ever used in those bundles, rotate it.
-
-To create a later version without overwriting any existing archive:
+Build a self-contained Windows review bundle locally:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\create-release.ps1 -Version "0.3.9"
 ```
 
-The self-contained app still requires Docker Desktop because SQL Server runs in a container.
+The generated ZIP is ignored by Git because it is a large build artifact. It includes `BUILD-INFO.txt` with the source commit and tracked changes present at package time. The bundle prompts for a local SQL Server password, creates the restricted `ExpenseApp` login, and contains no app/database password. A reviewer still needs Docker Desktop because SQL Server runs in a container. Only distribute a bundle after the isolated database, UI, and startup checks in [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) pass.
 
 ## Troubleshooting
 

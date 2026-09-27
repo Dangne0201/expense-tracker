@@ -1,4 +1,4 @@
-# Testing guide
+﻿# Testing guide
 
 Run commands from the repository root (the directory containing `ExpenseTracker.sln`).
 
@@ -30,20 +30,32 @@ The script securely prompts for the local SA password, starts SQL Server without
 For a separately created disposable SQL Server on another loopback port, set `SQL_CONN` to that instance and pass its port. The test runner then validates that the target is `ExpenseDb` on `localhost` or `127.0.0.1` at exactly that port and skips the repository's persistent Docker setup:
 
 ```powershell
-$env:SQL_CONN = "Server=localhost,11433;Database=ExpenseDb;User ID=sa;Password=<temporary-password>;TrustServerCertificate=True"
+$env:SQL_CONN = "Server=localhost,11433;Database=ExpenseDb;User ID=sa;Password=<disposable-password>;TrustServerCertificate=True;Encrypt=Falserd=<temporary-password>;TrustServerCertificate=True"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-integration-tests.ps1 -Port 11433
 Remove-Item Env:SQL_CONN
 ```
 
-Use only a disposable database for this mode; the test rolls back its transaction, but the custom instance is managed outside the setup script.
+Use only a disposable database for this mode; the test rolls back its transaction, but the custom instance is managed outside the setup script. Replace `<disposable-password>` with that disposable server password; do not commit real credentials.
 
 ## UI smoke test
+
+For safe, isolated QA, start a disposable SQL Server on a non-default loopback port, initialize it with `data/init.sql`, then run the UI flow using its connection string:
+
+```powershell
+$env:SQL_CONN = "Server=127.0.0.1,11433;Database=ExpenseDb;User ID=sa;Password=<disposable-password>;TrustServerCertificate=True;Encrypt=Falserd=<disposable-password>;TrustServerCertificate=True;Encrypt=False"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-ui-tests.ps1 -Configuration Release -Port 11433
+Remove-Item Env:SQL_CONN
+```
+
+With a non-default port the script does not call repository setup; it requires `SQL_CONN` to target `ExpenseDb` on `localhost` or `127.0.0.1` at that exact port. The UI flow cleans up its uniquely named category and its expenses in teardown. Use only a disposable database regardless, and do not commit real credentials. The connection variable is restored when the script exits.
+
+For the existing local development database, omit `-Port`; the script securely prompts for its SA password and starts/preserves Docker as needed. This mode writes a uniquely named UI test category to that database.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\run-ui-tests.ps1
 ```
 
-The script starts/preserves the Docker database, builds the WinForms app in the requested configuration, and launches it through FlaUI. It needs an interactive desktop and prompts securely for the local SQL Server SA password.
+Both modes build the WinForms app in the requested configuration and launch it through FlaUI. An interactive Windows desktop is required.
 
 ## Full local smoke path
 

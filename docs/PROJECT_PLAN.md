@@ -13,19 +13,29 @@ Expense Tracker is a single-user Windows desktop portfolio project. The WinForms
 - Starter categories for a new database without fake expense history.
 - Restricted local application login; setup protects its generated password for the current Windows user.
 - Database-independent validation/summary tests and separately tagged, local-only integration test.
-- Windows GitHub Actions workflow for restore, build, and unit tests.
+- Windows GitHub Actions workflow for restore, build, and database-independent unit tests.
 - Reviewer-oriented setup, demo steps, architecture notes, and documented security limitations.
 - Responsive window sizing, current-culture currency formatting, and a clear guard against deleting the total row.
-- A versioned `v0.3.8` review bundle that includes the setup script in its expected directory structure.
+- DataGridView columns sized with fill weights so the category column remains in the viewport when the window is resized.
+- UI checks for visible grid-cell bounds and screenshot capture cropped to the app window.
+- A locally generated, ignored self-contained Windows bundle that records its source commit and tracked changes in `BUILD-INFO.txt`.
+- A disposable-database UI-test mode that does not run setup against the developer's persistent database and cleans up its uniquely named test category.
+
+## Verification completed
+
+- Release solution build: passed with 0 warnings and 0 errors.
+- Unit tests: 13 passed.
+- UI tests: 2 passed against a disposable SQL Server; the extracted `v0.3.9` bundle executable also passed both UI tests.
+- Integration test: 1 passed against a disposable SQL Server.
+- The `v0.3.9` bundle was rebuilt from the current source and its metadata and startup files were inspected. It is ignored by Git.
+- The final authentic screenshot was captured from the running app against a disposable database; the grid columns and footer were visible in the 1938x1038 app-window image.
 
 ## Remaining proof before calling it ready to share
 
-- Run the documented setup and `v0.3.8` review bundle on a second clean Windows profile/VM; record the exact outcome and verify DPAPI credential creation/reuse there. Bundle setup, DPAPI create/reuse, app launch, and tests passed in an isolated project/profile directory on the current Windows user. Rebuild the bundle after the latest source UI layout adjustment before distributing it.
+- Repeat setup and review-bundle startup on a second clean Windows profile/VM; verify DPAPI credential creation/reuse there. Prior bundle setup and credential tests were run only on the current Windows profile.
 - Reapply and verify the current loopback-only port binding on any existing Docker container created with the older all-interface mapping; do this only with the matching SA password and preserve the existing named volume.
-- Integration test passed against a separately-created, disposable SQL Server container on loopback port 11433; repeat on a clean reviewer machine if possible.
-- The interactive FlaUI launch and automated add/edit/cancel/delete/restart flow passed against that disposable database; repeat the same path manually for an interview demo if useful.
-- Capture and inspect an authentic screenshot or short screen recording from the running app on a desktop where the whole form is visible; include it only after confirming all controls and grid columns are in frame.
-- Confirm a successful GitHub Actions run before describing CI as green. No completed workflow run is currently available for this branch.
+- Repeat the manual interview demo on a clean reviewer machine if useful.
+- Run the updated source through GitHub Actions after publishing it; the most recent successful workflow run predates the uncommitted changes in this work session.
 
 ## Deliberate non-goals for this portfolio version
 

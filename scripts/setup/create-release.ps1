@@ -1,5 +1,6 @@
 param(
-    [string]$Version = "0.3.0",
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version = "0.3.9",
     [string]$Runtime = "win-x64"
 )
 
@@ -31,6 +32,23 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet publish failed."
     }
+
+    $sourceCommit = & git -C $repoRoot rev-parse --short HEAD
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to determine the source commit for the release bundle."
+    }
+    $sourceChanges = & git -C $repoRoot diff --name-only HEAD
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to determine the source changes included in the release bundle."
+    }
+    $buildInfo = @(
+        "Version: $Version"
+        "Runtime: $Runtime"
+        "Source commit: $sourceCommit"
+        "Tracked source changes at build time:"
+        if ($sourceChanges) { $sourceChanges } else { "(none)" }
+    )
+    Set-Content -Path (Join-Path $stagingRoot "BUILD-INFO.txt") -Value $buildInfo -Encoding ASCII
 
     $bundleCompose = Get-Content (Join-Path $repoRoot "docker-compose.yml") -Raw
     $bundleCompose = $bundleCompose -replace '(?m)^\s*container_name:\s*expense-mssql\s*\r?\n', ''

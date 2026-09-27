@@ -105,7 +105,7 @@ namespace ExpenseTracker.WinForms
                 AllowUserToResizeColumns = true,
                 AllowUserToResizeRows = false
             };
-            dgvExpenses.SizeChanged += (s, e) => AdjustExpenseColumns();
+            dgvExpenses.SizeChanged += (s, e) => SetExpenseColumnLayout();
             dgvExpenses.CellFormatting += (s, e) =>
             {
                 if (e.RowIndex >= 0 && e.ColumnIndex >= 0 &&
@@ -513,7 +513,11 @@ namespace ExpenseTracker.WinForms
 
                 if (dgvExpenses.Columns.Contains("Id")) dgvExpenses.Columns["Id"].Visible = false;
                 if (dgvExpenses.Columns.Contains("CategoryId")) dgvExpenses.Columns["CategoryId"].Visible = false;
-                AdjustExpenseColumns();
+                if (dgvExpenses.Columns.Contains("CategoryName"))
+                {
+                    dgvExpenses.Columns["CategoryName"].HeaderText = "Category";
+                }
+                SetExpenseColumnLayout();
             }
             catch (Exception ex)
             {
@@ -521,23 +525,39 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        private void AdjustExpenseColumns()
+        private void SetExpenseColumnLayout()
         {
-            if (dgvExpenses.Columns.Count == 0)
+            var columns = new[]
             {
-                return;
+                (Name: "Amount", Weight: 18, MinimumWidth: 90),
+                (Name: "Date", Weight: 25, MinimumWidth: 120),
+                (Name: "Note", Weight: 32, MinimumWidth: 140),
+                (Name: "CategoryName", Weight: 25, MinimumWidth: 130)
+            };
+            var physicalWidth = Math.Max(
+                0,
+                dgvExpenses.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 2);
+            var availableWidth = physicalWidth;
+            var minimumWidthTotal = columns.Sum(column => column.MinimumWidth);
+            var remainingWidth = Math.Max(0, availableWidth - minimumWidthTotal);
+            var remainingWeight = columns.Sum(column => column.Weight);
+
+            foreach (var columnInfo in columns)
+            {
+                if (!dgvExpenses.Columns.Contains(columnInfo.Name))
+                {
+                    continue;
+                }
+
+                var column = dgvExpenses.Columns[columnInfo.Name];
+                column.MinimumWidth = columnInfo.MinimumWidth;
+                var proportionalWidth = remainingWeight == 0
+                    ? 0
+                    : remainingWidth * columnInfo.Weight / remainingWeight;
+                column.Width = columnInfo.MinimumWidth + proportionalWidth;
+                remainingWidth -= proportionalWidth;
+                remainingWeight -= columnInfo.Weight;
             }
-
-            var availableWidth = Math.Max(0, dgvExpenses.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
-            var amountWidth = Math.Max(70, (int)(availableWidth * 0.18));
-            var dateWidth = Math.Max(100, (int)(availableWidth * 0.25));
-            var noteWidth = Math.Max(100, (int)(availableWidth * 0.32));
-            var categoryWidth = Math.Max(90, availableWidth - amountWidth - dateWidth - noteWidth);
-
-            if (dgvExpenses.Columns.Contains("Amount")) dgvExpenses.Columns["Amount"].Width = amountWidth;
-            if (dgvExpenses.Columns.Contains("Date")) dgvExpenses.Columns["Date"].Width = dateWidth;
-            if (dgvExpenses.Columns.Contains("Note")) dgvExpenses.Columns["Note"].Width = noteWidth;
-            if (dgvExpenses.Columns.Contains("CategoryName")) dgvExpenses.Columns["CategoryName"].Width = categoryWidth;
         }
 
         private void AddExpense()
