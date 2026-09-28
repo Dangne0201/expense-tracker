@@ -102,9 +102,12 @@ try {
 
     $containerExists = $false
     $containerRunning = $false
-    $null = & $docker.Source inspect $containerName 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        $containerExists = $true
+    $containers = & $docker.Source container ls --all --format "{{.Names}}" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not list Docker containers: $($containers -join ' ')"
+    }
+    $containerExists = @($containers) -contains $containerName
+    if ($containerExists) {
         $runningState = & $docker.Source inspect --format '{{.State.Running}}' $containerName
         if ($LASTEXITCODE -ne 0) {
             throw "Could not inspect the existing SQL Server container '$containerName'."
