@@ -36,6 +36,8 @@ From the repository root, run setup:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup\setup-all.ps1
 ```
 
+This automatic first-time setup assumes there is no existing SQL Server data volume, or that this Windows user already has the protected credentials for it. The credentials are local to the Windows profile that created them; cloning the repo or switching Windows users does not transfer them. If Docker already has an `expense-mssql` container or this project has an existing database volume but the local `ExpenseApp` credential is missing, setup stops rather than guessing a password or risking the data. Recover the current SA password before retrying with `-saPassword`; do not remove the volume.
+
 To start Docker and initialize the database without launching the app (using the saved admin credential when available):
 
 ```powershell
@@ -125,7 +127,8 @@ The currently published `v0.3.10` bundle was built from source commit `ca858d1`,
 - Port 1433 is occupied: stop the conflicting SQL Server or change the port consistently in `docker-compose.yml` and the connection string.
 - SQL Server is not ready: inspect `docker logs expense-mssql`.
 - If an existing `expense-mssql` container still shows `0.0.0.0:1433` or `[::]:1433`, normal setup can reuse the saved `ExpenseApp` login to start the app but cannot update an existing container's configuration without its SA credential. Provide the existing SA password with `-saPassword` for this administrative setup path; then verify `docker ps`. Normal setup preserves the named database volume; never use `docker compose down -v` for this.
-- If the app cannot connect, run setup again to reuse the saved local credentials and check `docker compose logs mssql`. For an existing volume that has no saved SA credential, setup uses the protected `ExpenseApp` login for normal startup; provide the existing SA password only for administrative work such as migrations. Do not use `docker compose down -v` as a troubleshooting step: it permanently removes local database data.
+- If setup reports that the existing SQL Server has no saved `ExpenseApp` credential, the container/volume already exists but this Windows profile has no protected app credential for it. This can happen when using another Windows account or after local credential files were removed. Setup needs the current SA password to provision a replacement `ExpenseApp` login: retry with `-saPassword` only when you know that current password. If you do not know it, stop and recover it; do not guess, reset the volume, or run `docker compose down -v`.
+- If the app cannot connect, run setup again to reuse the saved local credentials and check `docker compose logs mssql`. For an existing volume with a protected `ExpenseApp` credential, normal startup does not need SA; admin work such as migrations does. Do not use `docker compose down -v` as a troubleshooting step: it permanently removes local database data.
 - If the DPAPI app credential cannot be decrypted, preserve the database volume. After confirming the SA password and current Windows user, remove only `%LOCALAPPDATA%\ExpenseTracker\app-db-password.bin` and rerun setup to create a replacement restricted login; this does not reset expense data.
 
 ## Structure
