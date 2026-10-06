@@ -85,6 +85,45 @@ function Build-And-LaunchApp {
     Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent)
 }
 
+function Get-ConfiguredContainerSaPassword([string]$Name) {
+    $environment = & $docker.Source inspect --format '{{range .Config.Env}}{{println .}}{{end}}' $Name 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not read the existing SQL Server container configuration."
+    }
+
+    $saLine = $environment | Where-Object {
+        $_.StartsWith("SA_PASSWORD=", [StringComparison]::Ordinal)
+    } | Select-Object -First 1
+    if ($null -eq $saLine) {
+        return $null
+    }
+
+    $password = $saLine.Substring("SA_PASSWORD=".Length)
+    if ([string]::IsNullOrWhiteSpace($password)) {
+        return $null
+    }
+    return $password
+}
+
+function Read-InteractiveSaPassword {
+    if (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected) {
+        return $null
+    }
+
+    $securePassword = Read-Host "Enter the current SQL Server SA password (input hidden)" -AsSecureString
+    if ($securePassword.Length -eq 0) {
+        return $null
+    }
+
+    $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+    }
+}
+
 try {
     if ([string]::IsNullOrWhiteSpace($saPassword)) {
         $saPassword = $originalSaPassword
@@ -132,7 +171,11 @@ try {
             throw "Could not check for an existing SQL Server volume. No credentials or database data were changed."
         }
         if (-not [string]::IsNullOrWhiteSpace(($volumeName -join ""))) {
-            throw "An existing SQL Server data volume was found without a saved local admin credential. Provide its current SA password with -saPassword; setup will not guess a new password or modify the volume."
+            $saPassword = Read-InteractiveSaPassword
+            $hasSuppliedAdminPassword = -not [string]::IsNullOrWhiteSpace($saPassword)
+            if (-not $hasSuppliedAdminPassword) {
+                throw "An existing SQL Server data volume was found without a saved local admin credential. Enter its current SA password when prompted, or rerun with -saPassword; setup will not guess a password or modify the volume."
+            }
         }
     }
 
@@ -141,9 +184,43 @@ try {
             $saPassword = Read-ExpenseProtectedSecret $adminCredentialFile
         }
         catch {
-            throw "Could not decrypt the saved local SQL Server admin credential. Preserve the database volume and credential file; use the original Windows profile or provide the current SA password with -saPassword."
+            if ($containerExists) {
+                Write-Warning "Could not decrypt the saved admin credential; checking the existing container for its configured SA password."
+                $saPassword = Get-ConfiguredContainerSaPassword $containerName
+            }
+            if ([string]::IsNullOrWhiteSpace($saPassword)) {
+                $saPassword = Read-InteractiveSaPassword
+            }
+            if ([string]::IsNullOrWhiteSpace($saPassword)) {
+                throw "Could not decrypt the saved local SQL Server admin credential. Preserve the database volume and credential file; use the original Windows profile or enter the current SA password."
+            }
         }
-        $hasSuppliedAdminPassword = $true
+        $hasSuppliedAdminPassword = -not [string]::IsNullOrWhiteSpace($saPassword)
+    }
+
+    if (-not $hasSuppliedAdminPassword -and $containerExists) {
+        $appCredentialFile = Get-ExpenseCredentialFile
+        $canReuseAppCredential = $false
+        if (Test-Path $appCredentialFile) {
+            try {
+                $null = Read-ExpenseProtectedSecret $appCredentialFile
+                $canReuseAppCredential = $true
+            }
+            catch {
+                Write-Warning "Could not decrypt the saved ExpenseApp credential; attempting to repair it with SQL Server admin access."
+            }
+        }
+
+        if (-not $canReuseAppCredential) {
+            $saPassword = Get-ConfiguredContainerSaPassword $containerName
+            if ([string]::IsNullOrWhiteSpace($saPassword)) {
+                $saPassword = Read-InteractiveSaPassword
+            }
+            $hasSuppliedAdminPassword = -not [string]::IsNullOrWhiteSpace($saPassword)
+            if (-not $hasSuppliedAdminPassword) {
+                throw "The existing SQL Server has no usable saved ExpenseApp credential or recoverable SA password. Enter the current SA password when prompted, or rerun with -saPassword. The database volume was left untouched."
+            }
+        }
     }
 
     if (-not $hasSuppliedAdminPassword -and $containerExists) {
@@ -159,18 +236,13 @@ try {
     else {
         if (-not $hasSuppliedAdminPassword) {
             $saPassword = New-ExpensePassword
-        }
-
-        if ($saPassword.Length -lt 12 -or
-            $saPassword -notmatch '[A-Z]' -or
-            $saPassword -notmatch '[a-z]' -or
-            $saPassword -notmatch '[0-9]' -or
-            $saPassword -notmatch '[^a-zA-Z0-9]') {
-            throw "The SQL Server admin password must have at least 12 characters, including uppercase, lowercase, a number, and a symbol."
-        }
-
-        if (-not $hasSavedAdminPassword -and -not $containerExists) {
-            Save-ExpenseProtectedSecret $adminCredentialFile $saPassword
+            if ($saPassword.Length -lt 12 -or
+                $saPassword -notmatch '[A-Z]' -or
+                $saPassword -notmatch '[a-z]' -or
+                $saPassword -notmatch '[0-9]' -or
+                $saPassword -notmatch '[^a-zA-Z0-9]') {
+                throw "The generated SQL Server admin password must have at least 12 characters, including uppercase, lowercase, a number, and a symbol."
+            }
         }
 
         $env:SA_PASSWORD = $saPassword

@@ -79,17 +79,20 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Database schema and safe migrations applied from data/init.sql; existing rows were preserved."
 
 $credentialFile = Get-ExpenseCredentialFile
+$saveAppCredential = $false
 if (Test-Path $credentialFile) {
     try {
         $appPassword = Read-ExpenseProtectedSecret $credentialFile
     }
     catch {
-        throw "Could not read this Windows user's protected app credential. Preserve the database volume and credential file; investigate the local Windows profile before recovery."
+        Write-Warning "Could not decrypt the saved ExpenseApp credential; replacing it after successful SQL Server admin authentication."
+        $appPassword = New-ExpensePassword
+        $saveAppCredential = $true
     }
 }
 else {
     $appPassword = New-ExpensePassword
-    Save-ExpenseProtectedSecret $credentialFile $appPassword
+    $saveAppCredential = $true
 }
 
 $provisionSql = @"
@@ -124,6 +127,9 @@ $provisionSql | & $docker.Source compose --project-directory $repoRoot exec -T `
     -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa -C -b
 if ($LASTEXITCODE -ne 0) {
     throw "Could not configure the restricted ExpenseApp database login."
+}
+if ($saveAppCredential) {
+    Save-ExpenseProtectedSecret $credentialFile $appPassword
 }
 
 $connectionBuilder = New-Object System.Data.Common.DbConnectionStringBuilder
