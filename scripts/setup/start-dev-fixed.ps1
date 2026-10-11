@@ -2,6 +2,7 @@ param(
     [string]$saPassword
 )
 
+# Starts Docker SQL Server, applies the canonical schema, and provisions the restricted ExpenseApp login.
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
 . (Join-Path $PSScriptRoot "credential-protection.ps1")
@@ -30,6 +31,7 @@ $originalSqlcmdPassword = [Environment]::GetEnvironmentVariable("SQLCMDPASSWORD"
 $env:SA_PASSWORD = $saPassword
 $env:SQLCMDPASSWORD = $saPassword
 try {
+# Start or reuse the Compose database and locate a sqlcmd binary inside the container.
 & $docker.Source compose --project-directory $repoRoot up -d
 if ($LASTEXITCODE -ne 0) {
     throw "docker compose up failed."
@@ -70,6 +72,7 @@ if (-not $ready) {
     throw "SQL Server did not become ready. Check 'docker compose logs mssql'; existing volumes are left untouched."
 }
 
+# Apply the idempotent schema and safe migrations without recreating the persistent volume.
 & $docker.Source compose --project-directory $repoRoot exec -T `
     -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa `
     -i /init/init.sql -C -b
@@ -78,6 +81,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "Database schema and safe migrations applied from data/init.sql; existing rows were preserved."
 
+# Reuse a readable app credential or generate a replacement after successful admin authentication.
 $credentialFile = Get-ExpenseCredentialFile
 $saveAppCredential = $false
 if (Test-Path $credentialFile) {
@@ -123,6 +127,7 @@ IF NOT EXISTS (
     ALTER ROLE [db_datawriter] ADD MEMBER [ExpenseApp];
 GO
 "@
+# Grant only the database reader/writer roles required by this single-user desktop app.
 $provisionSql | & $docker.Source compose --project-directory $repoRoot exec -T `
     -e SQLCMDPASSWORD mssql $sqlcmd -S localhost -U sa -C -b
 if ($LASTEXITCODE -ne 0) {
@@ -143,6 +148,7 @@ $env:SQL_CONN = $connectionBuilder.ConnectionString
 Write-Host "Configured the ExpenseApp login with database reader/writer permissions."
 }
 finally {
+    # Restore process environment credentials even if Docker or SQL setup fails.
     if ([string]::IsNullOrEmpty($originalSaPassword)) {
         Remove-Item Env:SA_PASSWORD -ErrorAction SilentlyContinue
     }

@@ -4,6 +4,7 @@ param(
     [string]$Runtime = "win-x64"
 )
 
+# Publishes the app and assembles a versioned review bundle with its Docker and setup files.
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
 $project = Join-Path $repoRoot "src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj"
@@ -28,6 +29,7 @@ if ($worktreeStatus) {
 New-Item $publishRoot -ItemType Directory -Force | Out-Null
 
 try {
+    # Publish a self-contained Windows build into a temporary staging directory.
     Write-Host "Publishing self-contained WinForms app for $Runtime..."
     & dotnet publish $project `
         --configuration Release `
@@ -51,6 +53,7 @@ try {
     )
     Set-Content -Path (Join-Path $stagingRoot "BUILD-INFO.txt") -Value $buildInfo -Encoding ASCII
 
+    # Copy the database and setup assets needed to initialize a review machine.
     $bundleCompose = Get-Content (Join-Path $repoRoot "docker-compose.yml") -Raw
     $bundleCompose = $bundleCompose -replace '(?m)^\s*container_name:.*\r?\n', ''
     $bundleCompose = $bundleCompose.Replace(
@@ -96,6 +99,7 @@ Docker Desktop is required to run SQL Server.
 The Docker volume is persistent. Do not remove it unless you intend to delete its database.
 '@ | Set-Content (Join-Path $stagingRoot "README.txt") -Encoding ASCII
 
+    # Archive the staged bundle, publish its checksum, and remove staging files on exit.
     $stagedArchive = Join-Path $stagingRoot "release.zip"
     Compress-Archive -Path (Join-Path $stagingRoot "*") -DestinationPath $stagedArchive -CompressionLevel Optimal
     Move-Item -Path $stagedArchive -Destination $archive

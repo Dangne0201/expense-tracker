@@ -4,8 +4,10 @@ using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.WinForms;
 
+// Writes application failures to the trace listener and a per-user local log file.
 internal static class ApplicationDiagnostics
 {
+    // Records operation and exception type while avoiding logging connection strings or passwords.
     public static void LogFailure(string operation, Exception exception)
     {
         var sqlError = exception is SqlException sqlException
@@ -22,6 +24,7 @@ internal static class ApplicationDiagnostics
             "application.log");
         try
         {
+            // Keep runtime diagnostics under LocalAppData rather than inside the repository.
             Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
             File.AppendAllText(logPath, entry + Environment.NewLine);
         }

@@ -16,6 +16,7 @@ using FlaUIApplication = FlaUI.Core.Application;
 
 namespace ExpenseTracker.UiTests
 {
+    // Native Windows API declarations used to resize windows and capture DPI-aware screenshots.
     internal static class NativeMethods
     {
         [StructLayout(LayoutKind.Sequential)]
@@ -50,11 +51,13 @@ namespace ExpenseTracker.UiTests
     }
 
     [TestFixture]
+    // Drives the WinForms app through UI Automation to verify layout and end-to-end expense workflows.
     public class MainWindowUiTests
     {
         private readonly List<string> _categoryNamesToCleanUp = new();
 
         [TearDown]
+        // Removes each uniquely named test category and its expenses after a UI test completes.
         public void CleanUpUiTestCategory()
         {
             if (_categoryNamesToCleanUp.Count == 0)
@@ -86,6 +89,7 @@ DELETE FROM Categories WHERE Name = @name;",
         }
 
         [Test]
+        // Verifies startup, loaded grid layout, filter visibility, and behavior at a narrow window size.
         public void App_launches_and_shows_a_main_window()
         {
             var repoRoot = Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "..", "..", ".."));
@@ -129,6 +133,7 @@ DELETE FROM Categories WHERE Name = @name;",
         }
 
         [Test]
+        // Exercises category/expense CRUD, filtering, CSV export, editing, and persistence across restarts.
         public void Expense_can_be_added_edited_cancelled_deleted_and_verified_after_restart()
         {
             var repoRoot = Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "..", "..", ".."));
@@ -147,6 +152,7 @@ DELETE FROM Categories WHERE Name = @name;",
             var baselineNote = note + "-baseline";
             var editedNote = note + "-edited";
 
+            // Check accessibility names and layout at narrow and maximized window sizes.
             using (var app = FlaUIApplication.Launch(exe))
             using (var automation = new UIA3Automation())
             {
@@ -181,6 +187,7 @@ DELETE FROM Categories WHERE Name = @name;",
                     main!.Patterns.Window.Pattern.SetWindowVisualState(WindowVisualState.Normal);
                     System.Threading.Thread.Sleep(250);
 
+                    // Create a disposable category and verify a newly added expense appears in the grid.
                     var categoryInput = Find(main!, "txtNewCategory").AsTextBox();
                     categoryInput.Text = categoryName;
                     Find(main!, "btnAddCategory").AsButton().Invoke();
@@ -192,6 +199,7 @@ DELETE FROM Categories WHERE Name = @name;",
                     Find(main!, "btnAddExpense").AsButton().Invoke();
                     Assert.That(WaitForRow(Find(main!, "dgvExpenses").AsDataGridView(), baselineNote, true), Is.Not.Null);
 
+                    // An empty date range should show an explicit empty state; clearing restores the baseline row.
                     var futureDate = new DateTime(2027, 1, 1);
                     Find(main!, "dtpFilterFrom").AsDateTimePicker().SelectedDate = futureDate;
                     Find(main!, "dtpFilterTo").AsDateTimePicker().SelectedDate = futureDate;
@@ -211,6 +219,7 @@ DELETE FROM Categories WHERE Name = @name;",
                     Assert.That(Find(main!, "dgvExpenses").AsDataGridView().Rows.Count, Is.EqualTo(2),
                         "Clearing the empty filter should restore the baseline expense and total row.");
 
+                    // Add a second expense and confirm the inclusive date filter returns only today's row.
                     SelectCategoryWhenAvailable(Find(main!, "lstCategories").AsListBox(), categoryName);
                     Find(main!, "txtAmount").AsTextBox().Text = "12.50";
                     Find(main!, "dtpDate").AsDateTimePicker().SelectedDate = DateTime.Today;
@@ -236,6 +245,7 @@ DELETE FROM Categories WHERE Name = @name;",
                         "The date filter should exclude the baseline expense from yesterday.");
                     Assert.That(Find(main!, "lblMonthTotal").Name, Does.Contain("Month total"));
                     Assert.That(Find(main!, "lblExpenseStatus").Name, Does.Contain("Showing 1 expense"));
+                    // Export the filtered result and ensure the display-only total row is excluded.
                     var exportPath = Path.Combine(
                         Path.GetTempPath(),
                         $"expense-tracker-ui-export-{Guid.NewGuid():N}.csv");
@@ -295,6 +305,7 @@ DELETE FROM Categories WHERE Name = @name;",
                         }
                     }
 
+                    // Escape cancels unsaved edits; saving a later edit updates the existing row.
                     Find(main!, "btnClearFilters").AsButton().Invoke();
                     Assert.That(WaitForRow(grid, note, shouldExist: true), Is.Not.Null);
                     addedRow = WaitForRow(grid, note, shouldExist: true)!;
@@ -327,6 +338,7 @@ DELETE FROM Categories WHERE Name = @name;",
                 }
             }
 
+            // Verify saved data survives a process restart and deletion requires confirmation.
             using (var restartedApp = FlaUIApplication.Launch(exe))
             using (var automation = new UIA3Automation())
             {
@@ -353,6 +365,7 @@ DELETE FROM Categories WHERE Name = @name;",
                 }
             }
 
+            // A final restart confirms the deletion also persists.
             using (var finalApp = FlaUIApplication.Launch(exe))
             using (var automation = new UIA3Automation())
             {
@@ -374,6 +387,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static AutomationElement Find(AutomationElement root, string automationId)
         {
+            // Wait briefly for dynamically loaded UI elements before failing the test.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             AutomationElement? element;
             do
@@ -393,6 +407,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void CloseIfRunning(FlaUIApplication application)
         {
+            // Close the launched app without masking an earlier test failure if it already exited.
             int processId;
             try
             {
@@ -417,6 +432,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void ConfirmDeleteDialog(UIA3Automation automation, AutomationElement mainWindow)
         {
+            // Find the confirmation dialog at desktop or window scope and accept its Yes action.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             AutomationElement? dialog = null;
             var desktop = automation.GetDesktop();
@@ -442,6 +458,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static AutomationElement WaitForSaveDialog(UIA3Automation automation)
         {
+            // Wait for the native Save As dialog exposed by the CSV export flow.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             var desktop = automation.GetDesktop();
             AutomationElement? dialog;
@@ -470,6 +487,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void WaitForSaveDialogToClose(UIA3Automation automation)
         {
+            // Confirm a cancelled export closes its native dialog.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             do
             {
@@ -489,6 +507,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static string ResolveAppPath(string repoRoot, string configuration)
         {
+            // Prefer an explicit test override; otherwise use the selected build configuration.
             var configuredPath = Environment.GetEnvironmentVariable("EXPENSE_TRACKER_APP_PATH");
             var path = string.IsNullOrWhiteSpace(configuredPath)
                 ? Path.Combine(repoRoot, "src", "ExpenseTracker.WinForms", "bin", configuration, "net10.0-windows", "ExpenseTracker.WinForms.exe")
@@ -500,6 +519,7 @@ DELETE FROM Categories WHERE Name = @name;",
             FlaUI.Core.AutomationElements.DataGridView grid,
             string text)
         {
+            // Searches visible cell values because the test locates rows by their unique note text.
             foreach (var row in grid.Rows)
             {
                 foreach (var cell in row.Cells)
@@ -519,6 +539,7 @@ DELETE FROM Categories WHERE Name = @name;",
             string text,
             bool shouldExist)
         {
+            // Polls for a row to appear or disappear after asynchronous UI/database operations.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             FlaUI.Core.AutomationElements.DataGridViewRow? row;
             do
@@ -537,6 +558,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static bool WaitForNameContains(AutomationElement element, string expectedText)
         {
+            // Waits until a status label reflects the expected asynchronous operation result.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             do
             {
@@ -556,6 +578,7 @@ DELETE FROM Categories WHERE Name = @name;",
             FlaUI.Core.AutomationElements.ListBox categories,
             string categoryName)
         {
+            // Retries selection while the app refreshes its category list after insertion.
             var timeout = System.Diagnostics.Stopwatch.StartNew();
             do
             {
@@ -581,6 +604,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void CaptureDemoScreenshotIfRequested(AutomationElement main)
         {
+            // Adds fixed demo records only when screenshot capture is explicitly requested.
             var screenshotPath = Environment.GetEnvironmentVariable("EXPENSE_TRACKER_SCREENSHOT_PATH");
             if (string.IsNullOrWhiteSpace(screenshotPath))
             {
@@ -642,6 +666,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void CaptureCurrentWindowIfRequested(AutomationElement main)
         {
+            // Saves the current app layout when a screenshot destination is configured.
             var screenshotPath = Environment.GetEnvironmentVariable("EXPENSE_TRACKER_LAYOUT_SCREENSHOT_PATH");
             if (string.IsNullOrWhiteSpace(screenshotPath))
             {
@@ -655,6 +680,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void CaptureWindowToFile(AutomationElement main, string path)
         {
+            // Captures physical screen pixels using the app window's bounds and restores DPI context afterward.
             var dpiContext = new IntPtr(-4);
             var previousDpiContext = NativeMethods.SetThreadDpiAwarenessContext(dpiContext);
             if (previousDpiContext == IntPtr.Zero)
@@ -694,6 +720,7 @@ DELETE FROM Categories WHERE Name = @name;",
             FlaUI.Core.AutomationElements.DataGridViewRow row,
             IntPtr windowHandle)
         {
+            // Checks all four expense columns meet DPI-scaled minimum widths without horizontal scrolling.
             var gridBounds = Rectangle.Round(grid.BoundingRectangle);
             var visibleCells = 0;
             var windowDpi = NativeMethods.GetDpiForWindow(windowHandle);
@@ -744,6 +771,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void AssertFilterControlsFit(AutomationElement main)
         {
+            // Ensures filter buttons stay visible and do not overlap the monthly summary.
             var windowBounds = Rectangle.Round(main.BoundingRectangle);
             var summaryBounds = Rectangle.Round(Find(main, "dtpSummaryMonth").BoundingRectangle);
             var filtersBounds = Rectangle.Round(Find(main, "expenseFilters").BoundingRectangle);
@@ -765,6 +793,7 @@ DELETE FROM Categories WHERE Name = @name;",
             FlaUI.Core.AutomationElements.DataGridViewRow row,
             string note)
         {
+            // Locates the note cell used to trigger the app's double-click-to-edit behavior.
             foreach (var cell in row.Cells)
             {
                 if (string.Equals(cell.Value, note, StringComparison.Ordinal))
@@ -779,6 +808,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         private static void DoubleClickCell(FlaUI.Core.AutomationElements.DataGridViewCell cell)
         {
+            // Sends a mouse double-click to the center of the requested grid cell.
             var bounds = cell.BoundingRectangle;
             Mouse.DoubleClick(new System.Drawing.Point(
                 bounds.Left + bounds.Width / 2,

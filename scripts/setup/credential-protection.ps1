@@ -1,4 +1,6 @@
+# Provides per-Windows-user DPAPI protection and local storage helpers for app and SQL admin credentials.
 if (-not ("ExpenseTracker.Security.DpapiUserScope" -as [type])) {
+    # Wraps Windows DPAPI so credential files can be encrypted without an external package.
     Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
@@ -50,6 +52,7 @@ namespace ExpenseTracker.Security
 
         private static byte[] Transform(byte[] input, bool protect)
         {
+            // Pin the input for the native call and always release native and managed buffers.
             var pinned = GCHandle.Alloc(input, GCHandleType.Pinned);
             var inputBlob = new DataBlob { Length = input.Length, Data = pinned.AddrOfPinnedObject() };
             DataBlob outputBlob;
@@ -85,10 +88,12 @@ namespace ExpenseTracker.Security
 }
 
 function Get-ExpenseCredentialFolder {
+    # Keep protected credentials in the current user's local application data directory.
     return Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "ExpenseTracker"
 }
 
 function Get-ExpenseCredentialFile {
+    # Allow tests or isolated setups to override the app credential path.
     $path = [Environment]::GetEnvironmentVariable("EXPENSE_TRACKER_CREDENTIAL_FILE", "Process")
     if ([string]::IsNullOrWhiteSpace($path)) {
         return Join-Path (Get-ExpenseCredentialFolder) "app-db-password.bin"
@@ -98,6 +103,7 @@ function Get-ExpenseCredentialFile {
 }
 
 function Get-ExpenseSqlAdminCredentialFile {
+    # Use a separate admin credential file for each Compose project to avoid cross-project reuse.
     $projectName = [Environment]::GetEnvironmentVariable("COMPOSE_PROJECT_NAME", "Process")
     $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
     $defaultProjectName = [IO.Path]::GetFileName($repoRoot).ToLowerInvariant() -replace '[^a-z0-9_-]', ''
@@ -115,12 +121,14 @@ function Get-ExpenseSqlAdminCredentialFile {
 }
 
 function Read-ExpenseProtectedSecret([string]$Path) {
+    # Decrypt a DPAPI-protected UTF-8 secret for the Windows user who created it.
     $protectedBytes = [IO.File]::ReadAllBytes($Path)
     $secretBytes = [ExpenseTracker.Security.DpapiUserScope]::Unprotect($protectedBytes)
     return [Text.Encoding]::UTF8.GetString($secretBytes)
 }
 
 function Save-ExpenseProtectedSecret([string]$Path, [string]$Secret) {
+    # Encrypt the secret for the current Windows user before writing it to disk.
     $folder = [IO.Path]::GetDirectoryName($Path)
     New-Item -ItemType Directory -Path $folder -Force | Out-Null
     $secretBytes = [Text.Encoding]::UTF8.GetBytes($Secret)
@@ -129,6 +137,7 @@ function Save-ExpenseProtectedSecret([string]$Path, [string]$Secret) {
 }
 
 function New-ExpensePassword {
+    # Generate a cryptographically random password that includes required character classes.
     $alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
     $randomBytes = New-Object byte[] 40
     $random = [Security.Cryptography.RandomNumberGenerator]::Create()

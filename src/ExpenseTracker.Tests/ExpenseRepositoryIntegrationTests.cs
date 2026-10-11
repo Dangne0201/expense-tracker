@@ -3,8 +3,10 @@ using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.Tests;
 
+// Exercises SQL Server repository behavior against a disposable local test database.
 public class ExpenseRepositoryIntegrationTests
 {
+    // Covers category and expense CRUD, inclusive date filtering, and calendar-month totals.
     [Fact]
     [Trait("Category", "Integration")]
     public async Task Repository_supports_crud_date_category_filters_and_monthly_totals()
@@ -16,6 +18,7 @@ public class ExpenseRepositoryIntegrationTests
 
         try
         {
+            // Create isolated test data and verify month boundaries, filtering, update, and delete behavior.
             await repository.AddCategoryAsync(categoryName);
             categoryId = (await repository.GetCategoriesAsync())
                 .Single(category => category.Name == categoryName).Id;
@@ -52,6 +55,7 @@ public class ExpenseRepositoryIntegrationTests
         }
         finally
         {
+            // Remove test rows even when an assertion fails; do not leave fixtures in the database.
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync();
             await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
@@ -67,6 +71,7 @@ DELETE FROM Categories WHERE Name = @name;",
         }
     }
 
+    // A foreign-key violation is expected when an expense references a missing category.
     [Fact]
     [Trait("Category", "Integration")]
     public async Task Repository_rejects_an_expense_with_a_missing_category()
@@ -78,6 +83,7 @@ DELETE FROM Categories WHERE Name = @name;",
         Assert.Equal(547, exception.Number);
     }
 
+    // Verifies DECIMAL(18,2), Unicode notes, and inclusion of the last tick of a selected day.
     [Fact]
     [Trait("Category", "Integration")]
     public async Task Repository_round_trips_decimal_boundary_unicode_and_day_end()
@@ -109,6 +115,7 @@ DELETE FROM Categories WHERE Name = @name;",
         }
         finally
         {
+            // Clean up the uniquely named category and its expenses after the boundary test.
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync();
             await using var command = new SqlCommand(
@@ -121,6 +128,7 @@ DELETE FROM Categories WHERE Name = @name;",
         }
     }
 
+    // Confirms the applied migration enforces case-insensitive unique names, nonblank names, and positive amounts.
     [Fact]
     [Trait("Category", "Integration")]
     public async Task Schema_migration_enforces_case_insensitive_unique_nonblank_category_names()
@@ -131,6 +139,7 @@ DELETE FROM Categories WHERE Name = @name;",
 
         try
         {
+            // First verify the migration marker, then exercise the database constraints it installs.
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync();
             await using (var migrationCommand = new SqlCommand(

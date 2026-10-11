@@ -5,6 +5,7 @@ Notes:
 Usage:
   PowerShell -ExecutionPolicy Bypass -File .\scripts\tests\run-ui-tests.ps1 -Configuration Release -Port 11433
 #>
+# Builds the WinForms app and runs interactive UI automation against a local database.
 param(
     [string]$Configuration = "Debug",
     [string]$saPassword,
@@ -20,6 +21,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
 $previousConfiguration = $env:EXPENSE_TRACKER_CONFIGURATION
 $previousConnection = [Environment]::GetEnvironmentVariable("SQL_CONN", "Process")
 try {
+    # Prepare the standard database or validate that a custom port targets a disposable local ExpenseDb.
     if ($Port -eq 1433) {
         $setupScript = Join-Path $repoRoot "scripts\setup\setup-all.ps1"
         & $setupScript -saPassword $saPassword -RunApp:$false
@@ -51,6 +53,7 @@ try {
         }
     }
 
+    # Build the app first because the UI tests launch its executable.
     & dotnet build (Join-Path $repoRoot 'src\ExpenseTracker.WinForms\ExpenseTracker.WinForms.csproj') --configuration $Configuration
     if ($LASTEXITCODE -ne 0) {
         throw "WinForms build failed."
@@ -73,6 +76,7 @@ try {
     }
 }
 finally {
+    # Restore process-level test settings regardless of build or test outcome.
     if ($null -eq $previousConfiguration) {
         Remove-Item Env:EXPENSE_TRACKER_CONFIGURATION -ErrorAction SilentlyContinue
     }

@@ -4,8 +4,10 @@ using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.Tests;
 
+// Guards integration-test connections and verifies basic SQL Server read/write access.
 public class DbIntegrationTests
 {
+    // Allows only ExpenseDb on localhost at the explicitly configured integration-test port.
     internal static string GetLocalTestConnectionString()
     {
         var connectionString = Environment.GetEnvironmentVariable("SQL_CONN");
@@ -49,6 +51,7 @@ public class DbIntegrationTests
 
     [Fact]
     [Trait("Category", "Integration")]
+    // Inserts and reads a temporary expense, then rolls it back on the successful test path.
     public void CanInsertAndReadExpense()
     {
         using var connection = new SqlConnection(GetLocalTestConnectionString());

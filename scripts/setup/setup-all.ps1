@@ -3,12 +3,14 @@ param(
     [bool]$RunApp = $true
 )
 
+# Starts or reuses local SQL Server, provisions the restricted app login, and optionally builds/launches the app.
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
 . (Join-Path $PSScriptRoot "credential-protection.ps1")
 $originalSaPassword = [Environment]::GetEnvironmentVariable("SA_PASSWORD", "Process")
 
 function Set-AppConnectionFromProtectedCredential {
+    # Reuse the saved app login without requiring the SQL Server admin password for normal startup.
     $credentialFile = Get-ExpenseCredentialFile
     if (-not (Test-Path $credentialFile)) {
         throw "The existing SQL Server has no saved ExpenseApp credential. Do not remove its volume; provide its SA password with -saPassword to repair setup."
@@ -63,6 +65,7 @@ function Set-AppConnectionFromProtectedCredential {
 }
 
 function Build-And-LaunchApp {
+    # Require the setup-created connection and optionally build and launch the WinForms executable.
     if ([string]::IsNullOrWhiteSpace($env:SQL_CONN)) {
         throw "SQL Server setup did not produce an app connection."
     }
@@ -86,6 +89,7 @@ function Build-And-LaunchApp {
 }
 
 function Get-ConfiguredContainerSaPassword([string]$Name) {
+    # Recover the SA password configured on an existing local container without printing it.
     $environment = & $docker.Source inspect --format '{{range .Config.Env}}{{println .}}{{end}}' $Name 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "Could not read the existing SQL Server container configuration."
@@ -106,6 +110,7 @@ function Get-ConfiguredContainerSaPassword([string]$Name) {
 }
 
 function Read-InteractiveSaPassword {
+    # Prompt only in an interactive console and keep the password hidden during entry.
     if (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected) {
         return $null
     }
@@ -125,6 +130,7 @@ function Read-InteractiveSaPassword {
 }
 
 try {
+    # Resolve the requested or previously configured admin credential before touching the container.
     if ([string]::IsNullOrWhiteSpace($saPassword)) {
         $saPassword = $originalSaPassword
     }
@@ -159,6 +165,7 @@ try {
     $hasSuppliedAdminPassword = -not [string]::IsNullOrWhiteSpace($saPassword)
 
     if (-not $containerExists -and -not $hasSavedAdminPassword -and -not $hasSuppliedAdminPassword) {
+        # Protect an existing Compose volume from accidental initialization with a guessed password.
         $composeProjectName = [Environment]::GetEnvironmentVariable("COMPOSE_PROJECT_NAME", "Process")
         if ([string]::IsNullOrWhiteSpace($composeProjectName)) {
             $composeProjectName = [IO.Path]::GetFileName($repoRoot).ToLowerInvariant() -replace '[^a-z0-9_-]', ''
@@ -180,6 +187,7 @@ try {
     }
 
     if (-not $hasSuppliedAdminPassword -and $hasSavedAdminPassword) {
+        # Fall back to the container's configured value or a hidden prompt if DPAPI cannot decrypt locally.
         try {
             $saPassword = Read-ExpenseProtectedSecret $adminCredentialFile
         }
@@ -199,6 +207,7 @@ try {
     }
 
     if (-not $hasSuppliedAdminPassword -and $containerExists) {
+        # Reuse the app credential when possible; otherwise require a recoverable admin credential.
         $appCredentialFile = Get-ExpenseCredentialFile
         $canReuseAppCredential = $false
         if (Test-Path $appCredentialFile) {
@@ -224,6 +233,7 @@ try {
     }
 
     if (-not $hasSuppliedAdminPassword -and $containerExists) {
+        # Start existing data without changing its credentials when app access is already usable.
         if (-not $containerRunning) {
             & $docker.Source start $containerName
             if ($LASTEXITCODE -ne 0) {
@@ -234,6 +244,7 @@ try {
         Write-Host "Reusing the saved ExpenseApp login; no SQL Server admin password is needed for normal startup."
     }
     else {
+        # Generate or validate an admin password, then run database setup without deleting volumes.
         if (-not $hasSuppliedAdminPassword) {
             $saPassword = New-ExpensePassword
             if ($saPassword.Length -lt 12 -or
@@ -260,6 +271,7 @@ try {
     Build-And-LaunchApp
 }
 finally {
+    # Restore the caller's process-level SA_PASSWORD after setup.
     if ([string]::IsNullOrEmpty($originalSaPassword)) {
         Remove-Item Env:SA_PASSWORD -ErrorAction SilentlyContinue
     }

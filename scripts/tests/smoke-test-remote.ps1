@@ -3,6 +3,7 @@ param(
     [bool]$RunApp = $false
 )
 
+# Runs the local setup flow followed by integration tests as a lightweight environment smoke check.
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -13,8 +14,10 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 }
 
 $setupScript = Join-Path $repoRoot "scripts\setup\setup-all.ps1"
+# Prepare the local SQL Server and app connection before building integration tests.
 & $setupScript -saPassword $saPassword -RunApp:$RunApp
 
+# Exercise the database integration path while preserving the Docker volume.
 & dotnet build (Join-Path $repoRoot "src\ExpenseTracker.Tests") --configuration Debug
 if ($LASTEXITCODE -ne 0) {
     throw "Test project build failed."

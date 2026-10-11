@@ -3,16 +3,19 @@ using Microsoft.Data.SqlClient;
 
 namespace ExpenseTracker.Core;
 
+// Implements parameterized SQL Server access for expense and category data.
 public sealed class ExpenseRepository : IExpenseRepository
 {
     private readonly string _connectionString;
 
+    // Requires a configured connection string so repository calls fail with explicit setup errors.
     public ExpenseRepository(string connectionString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         _connectionString = connectionString;
     }
 
+    // Reads categories in display order.
     public async Task<IReadOnlyList<Category>> GetCategoriesAsync(CancellationToken cancellationToken = default)
     {
         var categories = new List<Category>();
@@ -30,6 +33,7 @@ public sealed class ExpenseRepository : IExpenseRepository
         return categories;
     }
 
+    // Inserts a category using a typed parameter rather than SQL string interpolation.
     public async Task AddCategoryAsync(string name, CancellationToken cancellationToken = default)
     {
         await using var connection = new SqlConnection(_connectionString);
@@ -41,6 +45,7 @@ public sealed class ExpenseRepository : IExpenseRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    // Reads expenses with optional inclusive calendar-date bounds and an optional category.
     public async Task<IReadOnlyList<Expense>> GetExpensesAsync(
         ExpenseFilter filter,
         CancellationToken cancellationToken = default)
@@ -50,6 +55,7 @@ public sealed class ExpenseRepository : IExpenseRepository
 
         var expenses = new List<Expense>();
         await using var connection = new SqlConnection(_connectionString);
+        // Use an exclusive next-day upper bound so every time on the selected end date is included.
         await using var command = new SqlCommand(
             @"SELECT e.Id, e.Amount, e.Date, e.Note, e.CategoryId, c.Name AS CategoryName
 FROM Expenses e
@@ -82,6 +88,7 @@ ORDER BY e.Date DESC, e.Id DESC",
         return expenses;
     }
 
+    // Sums expenses for the selected calendar month, optionally restricted to one category.
     public async Task<decimal> GetMonthlyTotalAsync(
         DateTime month,
         int? categoryId = null,
@@ -109,6 +116,7 @@ WHERE Date >= @monthStart AND Date < @nextMonth
         return Convert.ToDecimal(result);
     }
 
+    // Inserts an expense with shared, explicitly typed parameters.
     public async Task AddExpenseAsync(
         decimal amount,
         DateTime date,
@@ -125,6 +133,7 @@ WHERE Date >= @monthStart AND Date < @nextMonth
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    // Updates a single expense and returns false when its ID no longer exists.
     public async Task<bool> UpdateExpenseAsync(
         int id,
         decimal amount,
@@ -145,6 +154,7 @@ WHERE Id = @id",
         return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
+    // Deletes a single expense and reports whether a row was found.
     public async Task<bool> DeleteExpenseAsync(int id, CancellationToken cancellationToken = default)
     {
         await using var connection = new SqlConnection(_connectionString);
@@ -156,6 +166,7 @@ WHERE Id = @id",
         return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
+    // Keeps SQL parameter types and DECIMAL(18,2) precision consistent across writes.
     private static void AddExpenseParameters(
         SqlCommand command,
         decimal amount,

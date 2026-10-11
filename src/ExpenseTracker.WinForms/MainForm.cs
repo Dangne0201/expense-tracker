@@ -13,13 +13,12 @@ using Microsoft.Data.SqlClient;
 namespace ExpenseTracker.WinForms
 {
     /// <summary>
-    /// Màn hình chính của ứng dụng quản lý chi tiêu.
-    /// Tải danh mục và khoản chi, xử lý thêm/sửa/xóa, đồng thời tìm kết nối database
-    /// theo thứ tự SQL_CONN rồi đến file MDF và LocalDB.
+    /// Main expense-tracking screen for category and expense workflows.
+    /// Resolves the database from SQL_CONN first, then tries an MDF file and LocalDB.
     /// </summary>
     public class MainForm : Form
     {
-        // Chuỗi kết nối được chọn khi khởi động và dùng lại cho các thao tác dữ liệu.
+        // Selected once at startup and reused by repository operations.
         private string _conn;
         private ExpenseRepository _repository;
         private ExpenseOverviewService _expenseOverviewService;
@@ -29,7 +28,7 @@ namespace ExpenseTracker.WinForms
         private const string LocalDbAttachConnectionTemplate =
             @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename={0};Integrated Security=True;Connect Timeout=3;";
 
-        // Các điều khiển giao diện được khởi tạo trong InitializeComponents.
+        // UI controls are created and wired in InitializeComponents.
         private ListBox lstCategories;
         private Button btnLoadCategories;
         private TextBox txtNewCategory;
@@ -66,10 +65,10 @@ namespace ExpenseTracker.WinForms
             string CategoryName,
             bool IsTotal);
 
-        // Khởi tạo kết nối dữ liệu và dịch vụ, dựng giao diện rồi tải dữ liệu khi cửa sổ hiện lên.
+        // Resolve the database, create the data services and UI, then load data when the window opens.
         public MainForm()
         {
-            // Tìm kết nối database trước khi dựng giao diện vì các thao tác sau phụ thuộc vào kết nối này.
+            // Choose the connection before creating services that depend on it.
             EnsureDatabaseAvailable();
             _repository = new ExpenseRepository(_conn);
             _expenseOverviewService = new ExpenseOverviewService(_repository);
@@ -82,10 +81,10 @@ namespace ExpenseTracker.WinForms
             FormClosing += (s, e) => _expenseLoadCancellation?.Cancel();
         }
 
-        // Tạo các thành phần giao diện, sắp xếp chúng và nối thao tác người dùng với các hàm xử lý.
+        // Builds the form layout and connects user actions to their handlers.
         private void InitializeComponents()
         {
-            // Thiết lập tiêu đề, kích thước cửa sổ và phím Escape để thoát chế độ sửa.
+            // Set the initial window size and let Escape cancel an active edit.
             Text = "Expense Tracker (WinForms)";
             AutoScaleMode = AutoScaleMode.Dpi;
             Font = SystemFonts.MessageBoxFont;
@@ -105,7 +104,7 @@ namespace ExpenseTracker.WinForms
                 }
             };
 
-            // Bố cục chính gồm danh mục bên trái và danh sách khoản chi bên phải.
+            // The main layout places categories on the left and expenses on the right.
             var root = new TableLayoutPanel { ColumnCount = 2, RowCount = 1 };
             var categoryPanelWidth = Math.Min(380, Math.Max(240, (int)(ClientSize.Width * 0.34)));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, categoryPanelWidth));
@@ -113,13 +112,12 @@ namespace ExpenseTracker.WinForms
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
-            // Tạo bảng khoản chi, định dạng số tiền và mô tả hỗ trợ truy cập.
-            // Khu vực bên trái hiển thị danh mục và các nút tải/thêm danh mục.
+            // Create the category list in the left-hand panel.
             var pnlLeft = new Panel { Dock = DockStyle.Fill };
             var lblCat = new Label { Text = "Categories", Dock = DockStyle.Top, Height = 22 };
             lstCategories = new ListBox { Name = "lstCategories", Dock = DockStyle.Fill };
 
-            // Khu vực bên phải hiển thị khoản chi, bộ lọc và các ô nhập liệu.
+            // Create the expense grid in the right-hand panel.
             var pnlRight = new Panel { Dock = DockStyle.Fill };
             var lblExp = new Label { Text = "Expenses", Dock = DockStyle.Top, Height = 22 };
             dgvExpenses = new DataGridView
@@ -138,6 +136,7 @@ namespace ExpenseTracker.WinForms
                 AllowUserToResizeRows = false
             };
             dgvExpenses.SizeChanged += (s, e) => SetExpenseColumnLayout();
+            // Format amount cells for the current culture while keeping the stored values numeric.
             dgvExpenses.CellFormatting += (s, e) =>
             {
                 if (e.RowIndex >= 0 && e.ColumnIndex >= 0 &&
@@ -160,15 +159,14 @@ namespace ExpenseTracker.WinForms
             };
             var expenseFilterPanel = CreateExpenseFilterPanel();
 
-            // Chia phần chân cửa sổ thành khu danh mục và khu nhập liệu.
-            // Chân cửa sổ dùng chung để căn thẳng hàng khu vực danh mục và nhập khoản chi.
+            // Divide the shared footer into category controls and expense entry/actions.
             const int footerHeight = 120;
             var footer = new TableLayoutPanel { ColumnCount = 2, RowCount = 1 };
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, categoryPanelWidth));
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            // Tạo các điều khiển tải danh mục và nhập tên danh mục mới.
+            // Add category reload and category-name entry controls to the left footer.
             var footerLeft = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(6), WrapContents = false };
             var categoryButtonWidth = categoryPanelWidth < 280 ? 60 : 75;
             btnLoadCategories = new Button { Name = "btnLoadCategories", Text = "Load", AutoSize = false, Width = categoryButtonWidth, Height = 44, Padding = new Padding(6), Margin = new Padding(2), TextAlign = ContentAlignment.MiddleCenter };
@@ -182,8 +180,7 @@ namespace ExpenseTracker.WinForms
             btnLoadCategories.Click += async (s, e) => await LoadCategoriesAsync();
             btnAddCategory.Click += async (s, e) => await AddCategoryAsync();
 
-            // Bố trí các trường số tiền, ngày và ghi chú thành một hàng nhập liệu.
-            // Tạo các ô nhập khoản chi và các nút thêm, tải, xóa.
+            // Place amount, date, and note inputs in one row above the expense actions.
             var footerRight = new Panel { Dock = DockStyle.Fill };
 
             var inputTable = new TableLayoutPanel
@@ -253,7 +250,7 @@ namespace ExpenseTracker.WinForms
             footerRightTable.Controls.Add(btnLoadExpenses, 2, 1);
             footerRightTable.Controls.Add(btnAddExpense, 3, 1);
 
-            // Nối nút và thao tác nhấp đúp trên bảng với các chức năng tương ứng.
+            // Connect buttons and grid double-clicks to expense operations.
             btnAddExpense.Click += async (s, e) => await AddExpenseAsync();
             btnLoadExpenses.Click += async (s, e) => await LoadExpensesAsync();
             btnDeleteExpense.Click += async (s, e) => await DeleteSelectedExpenseAsync();
@@ -280,8 +277,7 @@ namespace ExpenseTracker.WinForms
             footer.Controls.Add(footerRight, 1, 0);
             Controls.Add(footer);
 
-            // Giữ vùng nội dung phía trên và hàng nút phía dưới đúng kích thước khi đổi cỡ cửa sổ.
-            // Cập nhật kích thước vùng nội dung và chân cửa sổ khi cửa sổ đổi kích thước.
+            // Keep the main content above a fixed-height footer when the window is resized.
             void LayoutMainContent()
             {
                 var contentHeight = Math.Max(0, ClientSize.Height - footerHeight);
@@ -293,13 +289,13 @@ namespace ExpenseTracker.WinForms
             LayoutMainContent();
         }
 
-        // Tạo bộ lọc ngày/danh mục, bộ chọn tháng, tổng tháng và thông báo trạng thái.
+        // Builds the date/category filters, monthly summary, and expense status area.
         private Panel CreateExpenseFilterPanel()
         {
             const int filterControlsHeight = 136;
             const int summaryRowSpacing = 5;
 
-            // Tạo khung chứa hàng bộ lọc và hàng tổng chi theo tháng.
+            // Create separate rows for filter controls and the monthly summary.
             var filterPanel = new Panel
             {
                 Name = "expenseFilterPanel",
@@ -324,7 +320,7 @@ namespace ExpenseTracker.WinForms
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
 
-            // Tạo bộ lọc khoảng ngày, danh mục và các nút áp dụng, xóa, xuất CSV.
+            // Create optional date bounds, category selection, and filter/export actions.
             dtpFilterFrom = new DateTimePicker
             {
                 Name = "dtpFilterFrom",
@@ -394,7 +390,7 @@ namespace ExpenseTracker.WinForms
                 btnExportExpenses
             });
 
-            // Tạo phần chọn tháng, tổng tháng và thông báo trạng thái tải dữ liệu.
+            // Create the month selector, total label, and load-status message.
             dtpSummaryMonth = new DateTimePicker
             {
                 Name = "dtpSummaryMonth",
@@ -429,7 +425,7 @@ namespace ExpenseTracker.WinForms
             filterPanel.Controls.Add(summaryRow);
             filterPanel.Controls.Add(filters);
             var updatingFilterLayout = false;
-            // Tính lại chiều cao và vị trí các hàng lọc để chúng vừa với chiều rộng hiện tại.
+            // Reflow the filter controls and resize the panel when its available width changes.
             void UpdateFilterLayout()
             {
                 if (updatingFilterLayout)
@@ -459,7 +455,7 @@ namespace ExpenseTracker.WinForms
             filterPanel.Resize += (s, e) => UpdateFilterLayout();
             UpdateFilterLayout();
 
-            // Gắn thao tác áp dụng/xóa bộ lọc và xuất dữ liệu đang hiển thị.
+            // Apply or clear filters by reloading the grid; export the currently loaded rows.
             btnApplyFilters.Click += async (s, e) => await LoadExpensesAsync();
             btnClearFilters.Click += async (s, e) =>
             {
@@ -478,10 +474,10 @@ namespace ExpenseTracker.WinForms
             return filterPanel;
         }
 
-        // Tìm và kiểm tra kết nối database theo thứ tự: SQL_CONN, file MDF, rồi LocalDB.
+        // Probes SQL_CONN first, then an attached MDF, and finally the default LocalDB instance.
         private void EnsureDatabaseAvailable()
         {
-            // Ưu tiên chuỗi kết nối do setup cung cấp; thử lại ngắn trước khi báo lỗi.
+            // Prefer the setup-provided connection string and retry briefly before reporting failure.
             var envConn = GetConnectionStringFromEnvironment();
             if (!string.IsNullOrWhiteSpace(envConn))
             {
@@ -509,7 +505,7 @@ namespace ExpenseTracker.WinForms
                 return;
             }
 
-            // Nếu có file MDF trong repo, thử gắn file đó vào LocalDB trước.
+            // If a repository MDF exists, try attaching it to LocalDB.
             var mdfPath = FindDataMdf();
             if (!string.IsNullOrEmpty(mdfPath))
             {
@@ -534,7 +530,7 @@ namespace ExpenseTracker.WinForms
                 }
             }
 
-            // Không có kết nối từ SQL_CONN/MDF thì thử LocalDB mặc định, rồi thử lại MDF.
+            // Otherwise try the default LocalDB database, then retry an MDF attach with its full path.
             StartLocalDbInstance();
             if (TryOpenConnection(LocalDbConnectionString))
             {
@@ -553,7 +549,7 @@ namespace ExpenseTracker.WinForms
                 }
             }
 
-            // Ghi nhận chuỗi LocalDB dự phòng và báo để người dùng kiểm tra cấu hình dịch vụ.
+            // Keep the fallback string for later operations and tell the user no connection was available.
             _conn = LocalDbConnectionString;
             MessageBox.Show(
                 "No database connection is available. Start Docker SQL Server or configure LocalDB, then restart the app.",
@@ -562,10 +558,10 @@ namespace ExpenseTracker.WinForms
                 MessageBoxIcon.Error);
         }
 
-        // Đọc SQL_CONN từ biến môi trường và chuẩn hóa chuỗi kết nối trước khi dùng.
+        // Reads SQL_CONN from the process environment and normalizes local SQL options.
         private string GetConnectionStringFromEnvironment()
         {
-            // Ưu tiên biến môi trường của tiến trình vì script setup thiết lập giá trị này.
+            // Setup scripts set the process-level value inherited by the app.
             var envConn = Environment.GetEnvironmentVariable("SQL_CONN");
             if (string.IsNullOrWhiteSpace(envConn))
             {
@@ -575,7 +571,7 @@ namespace ExpenseTracker.WinForms
             return NormalizeConnectionStringForLocalSql(envConn);
         }
 
-        // Chuẩn hóa một số tùy chọn kết nối để phù hợp với SQL Server chạy trên máy local.
+        // Applies the connection options expected by this local SQL Server app.
         private static string NormalizeConnectionStringForLocalSql(string connectionString)
         {
             if (string.IsNullOrWhiteSpace(connectionString))
@@ -592,7 +588,7 @@ namespace ExpenseTracker.WinForms
             return builder.ConnectionString;
         }
 
-        // Thử mở kết nối; ghi log và trả về false nếu chuỗi kết nối hoặc database không dùng được.
+        // Opens a short-lived probe connection and logs expected connection failures.
         private bool TryOpenConnection(string connStr)
         {
             try
@@ -609,13 +605,12 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Khởi động LocalDB dự phòng cho máy phát triển không dùng SQL Server trong Docker.
+        // Starts the legacy LocalDB fallback for development machines not using Docker SQL Server.
         private void StartLocalDbInstance()
         {
-            // LocalDB là phương án dự phòng cũ cho máy phát triển không dùng Docker.
             try
             {
-                // Chạy lệnh khởi động LocalDB ở chế độ ẩn và chờ tối đa 5 giây.
+                // Run LocalDB startup without a console window and wait up to five seconds.
                 var psi = new ProcessStartInfo("sqllocaldb", "start MSSQLLocalDB")
                 {
                     CreateNoWindow = true,
@@ -627,7 +622,7 @@ namespace ExpenseTracker.WinForms
                 using var p = Process.Start(psi);
                 if (p == null)
                 {
-                    // Ghi log nếu Windows không tạo được tiến trình khởi động.
+                    // Record failure to create the LocalDB startup process.
                     ApplicationDiagnostics.LogFailure(
                         "Starting LocalDB",
                         new InvalidOperationException("The LocalDB startup process could not be created."));
@@ -636,7 +631,7 @@ namespace ExpenseTracker.WinForms
 
                 if (!p.WaitForExit(5000))
                 {
-                    // Ghi nhận riêng trường hợp lệnh bị treo hoặc chạy quá thời gian chờ.
+                    // Distinguish a startup timeout from a non-zero process exit.
                     ApplicationDiagnostics.LogFailure(
                         "Starting LocalDB",
                         new TimeoutException("The LocalDB startup process did not finish in time."));
@@ -662,12 +657,11 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Tìm file ExpenseDb.mdf trong thư mục data khi lần ngược từ thư mục chạy ứng dụng.
+        // Searches parent directories of the app for data/ExpenseDb.mdf.
         private string FindDataMdf()
         {
-            // Tìm ngược từ thư mục chạy ứng dụng để hỗ trợ nhiều kiểu chạy/build khác nhau.
             var dir = AppDomain.CurrentDomain.BaseDirectory;
-            // Kiểm tra lần lượt thư mục hiện tại và các thư mục cha để tìm data/ExpenseDb.mdf.
+            // Walk upward because the working directory varies between IDE, build, and published runs.
             for (int i = 0; i < 8; i++)
             {
                 var candidate = Path.GetFullPath(Path.Combine(dir, "data", "ExpenseDb.mdf"));
@@ -681,18 +675,18 @@ namespace ExpenseTracker.WinForms
             return null;
         }
 
-        // Tải danh mục vào danh sách bên trái và hộp chọn danh mục dùng để lọc khoản chi.
+        // Loads categories into the left list and the expense-filter dropdown.
         private async Task LoadCategoriesAsync()
         {
             try
             {
-                // Ghi nhớ bộ lọc đang chọn để không đổi danh mục lọc khi tải lại danh sách.
+                // Preserve the current category filter when refreshing available categories.
                 var previousFilterCategoryId = cboFilterCategory.SelectedValue is int selectedId
                     ? selectedId
                     : 0;
                 var categories = await _repository.GetCategoriesAsync();
 
-                // Đổ danh mục vừa tải vào danh sách bên trái.
+                // Bind the loaded categories to the left-hand list.
                 lstCategories.DisplayMember = nameof(Category.Name);
                 lstCategories.ValueMember = nameof(Category.Id);
                 lstCategories.DataSource = categories;
@@ -701,7 +695,7 @@ namespace ExpenseTracker.WinForms
                     .Concat(categories)
                     .ToList();
 
-                // Hộp lọc có thêm lựa chọn "All categories" và khôi phục lựa chọn cũ nếu còn hợp lệ.
+                // Add an all-categories option and restore the prior selection when it still exists.
                 cboFilterCategory.DisplayMember = nameof(Category.Name);
                 cboFilterCategory.ValueMember = nameof(Category.Id);
                 cboFilterCategory.DataSource = filterCategories;
@@ -719,10 +713,10 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Kiểm tra tên danh mục rồi lưu vào database; báo riêng trường hợp tên đã tồn tại.
+        // Validates and saves a category, with a specific message for duplicate names.
         private async Task AddCategoryAsync()
         {
-            // Chuẩn hóa và kiểm tra tên trước khi gửi yêu cầu thêm xuống database.
+            // Trim and validate the entered name before sending it to the repository.
             var name = txtNewCategory.Text.Trim();
             if (!ExpenseValidation.IsValidCategoryName(name))
             {
@@ -733,14 +727,14 @@ namespace ExpenseTracker.WinForms
 
             try
             {
-                // Lưu danh mục mới, xóa ô nhập và tải lại danh sách sau khi thêm thành công.
+                // Clear the input and refresh both category controls after a successful insert.
                 await _repository.AddCategoryAsync(name);
                 txtNewCategory.Text = "";
                 await LoadCategoriesAsync();
             }
             catch (SqlException ex) when (ex.Number is 2601 or 2627)
             {
-                // SQL Server báo trùng tên qua lỗi unique constraint/index.
+                // SQL Server reports duplicate names through a unique constraint or index error.
                 _inputErrors.SetError(txtNewCategory, "A category with this name already exists.");
                 txtNewCategory.Focus();
             }
@@ -750,10 +744,10 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Tải khoản chi theo bộ lọc, cập nhật bảng, tổng tháng và trạng thái hiển thị.
+        // Loads filtered expenses and refreshes the grid, monthly total, and status message.
         private async Task LoadExpensesAsync()
         {
-            // Đọc các điều kiện lọc từ giao diện; bộ lọc ngày không chọn sẽ được bỏ qua.
+            // Read active filters; unchecked date controls are treated as no bound.
             var startDate = dtpFilterFrom.Checked ? dtpFilterFrom.Value.Date : (DateTime?)null;
             var endDate = dtpFilterTo.Checked ? dtpFilterTo.Value.Date : (DateTime?)null;
             var categoryId = cboFilterCategory.SelectedValue is int selectedCategoryId &&
@@ -769,7 +763,7 @@ namespace ExpenseTracker.WinForms
                 return;
             }
 
-            // Hủy lần tải cũ nếu có và khóa nút lọc trong khi yêu cầu mới đang chạy.
+            // Cancel any older load and disable filter actions while the new request is pending.
             var requestVersion = System.Threading.Interlocked.Increment(ref _expenseLoadVersion);
             _expenseLoadCancellation?.Cancel();
             var loadCancellation = new CancellationTokenSource();
@@ -780,7 +774,7 @@ namespace ExpenseTracker.WinForms
             lblExpenseStatus.Text = "Loading expenses...";
             try
             {
-                // Tải danh sách đã lọc cùng tổng tháng từ dịch vụ tổng quan.
+                // Request filtered rows and the selected month's total from the overview service.
                 var filter = new ExpenseFilter(startDate, endDate, categoryId);
                 var overview = await _expenseOverviewService.LoadAsync(
                     filter,
@@ -792,7 +786,7 @@ namespace ExpenseTracker.WinForms
                     return;
                 }
 
-                // Chuyển dữ liệu thành các dòng bảng, thêm dòng tổng và cập nhật nhãn tổng tháng.
+                // Bind expense rows, append a display-only total row, and update the month summary.
                 var expenses = overview.Expenses;
                 var monthlyTotal = overview.MonthlyTotal;
                 _visibleExpenses = expenses;
@@ -826,11 +820,11 @@ namespace ExpenseTracker.WinForms
             }
             catch (OperationCanceledException) when (loadCancellation.IsCancellationRequested)
             {
-                // Yêu cầu bị thay thế bởi lần tải mới hoặc form đang đóng nên không hiện lỗi.
+                // Ignore cancellation when a newer request replaces this load or the form is closing.
             }
             catch (Exception ex)
             {
-                // Chỉ cập nhật thông báo cho yêu cầu mới nhất, tránh lần tải cũ ghi đè trạng thái.
+                // Only the latest request may update the status shown in the form.
                 if (requestVersion == Volatile.Read(ref _expenseLoadVersion))
                 {
                     lblExpenseStatus.Text = "Unable to load expenses. Select Load Expenses to retry.";
@@ -839,7 +833,7 @@ namespace ExpenseTracker.WinForms
             }
             finally
             {
-                // Khôi phục giao diện và giải phóng token dù tải thành công, thất bại hay bị hủy.
+                // Restore controls and dispose the cancellation source on every completion path.
                 if (!IsDisposed && requestVersion == Volatile.Read(ref _expenseLoadVersion))
                 {
                     btnApplyFilters.Enabled = true;
@@ -856,10 +850,10 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Tính độ rộng cột theo kích thước bảng và DPI để nội dung dễ đọc khi đổi cỡ cửa sổ.
+        // Sizes visible grid columns for the current viewport and display DPI.
         private void SetExpenseColumnLayout()
         {
-            // Khai báo tỷ lệ và chiều rộng tối thiểu cho các cột người dùng nhìn thấy.
+            // Define each visible column's relative share and minimum readable width.
             var columns = new[]
             {
                 (Name: "Amount", Weight: 18, MinimumWidth: 90),
@@ -876,7 +870,7 @@ namespace ExpenseTracker.WinForms
             var minimumContentWidth = scaledColumns.Sum(column => column.MinimumWidth);
             var requiredClientWidth = minimumContentWidth + 2;
 
-            // Bật thanh cuộn ngang khi vùng nhìn không đủ chỗ cho chiều rộng tối thiểu.
+            // Enable horizontal scrolling only when the minimum column widths cannot fit.
             var requiredScrollBars = dgvExpenses.ClientSize.Width < requiredClientWidth
                 ? ScrollBars.Both
                 : ScrollBars.Vertical;
@@ -889,7 +883,7 @@ namespace ExpenseTracker.WinForms
             var remainingWidth = Math.Max(0, availableWidth - minimumContentWidth);
             var remainingWeight = scaledColumns.Sum(column => column.Weight);
 
-            // Chia phần chiều rộng còn lại theo tỷ lệ đã khai báo cho từng cột.
+            // Distribute remaining width by the configured column weights.
             foreach (var columnInfo in scaledColumns)
             {
                 if (!dgvExpenses.Columns.Contains(columnInfo.Name))
@@ -917,10 +911,10 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Xuất các khoản chi hiện đang được hiển thị (sau khi lọc) thành file CSV.
+        // Exports the currently loaded (filtered) expenses to a user-selected CSV file.
         private void ExportExpenses()
         {
-            // Hỏi người dùng vị trí lưu file CSV; hủy thao tác nếu đóng hộp thoại.
+            // Ask where to save the CSV and stop if the dialog is cancelled.
             using var dialog = new SaveFileDialog
             {
                 AddExtension = true,
@@ -936,14 +930,14 @@ namespace ExpenseTracker.WinForms
 
             try
             {
-                // Ghi các khoản chi đã lọc ra file UTF-8 có BOM để tương thích với bảng tính.
+                // Write the filtered rows as UTF-8 with a BOM for spreadsheet compatibility.
                 using var writer = new StreamWriter(dialog.FileName, false, new System.Text.UTF8Encoding(true));
                 ExpenseCsvExporter.Write(writer, _visibleExpenses);
                 lblExpenseStatus.Text = $"Exported {_visibleExpenses.Count} filtered expenses.";
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
-                // Ghi log và báo lỗi nếu đường dẫn không hợp lệ hoặc không có quyền ghi file.
+                // Log and report expected path or permission failures.
                 ApplicationDiagnostics.LogFailure("CSV export", ex);
                 MessageBox.Show(
                     "Could not export the CSV file. Check the destination and your write permissions.",
@@ -953,10 +947,10 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Kiểm tra dữ liệu nhập rồi thêm khoản chi mới hoặc lưu thay đổi khoản đang sửa.
+        // Validates the entry and either inserts a new expense or saves the active edit.
         private async Task AddExpenseAsync()
         {
-            // Bảo đảm đã có và đã chọn danh mục trước khi kiểm tra các trường khoản chi.
+            // Require a loaded category and a selected category before saving.
             if (lstCategories.Items.Count == 0)
             {
                 MessageBox.Show("No category selected. Load categories and select one.");
@@ -969,7 +963,7 @@ namespace ExpenseTracker.WinForms
                 return;
             }
 
-            // Kiểm tra số tiền rồi lấy ngày, ghi chú và mã danh mục từ giao diện.
+            // Parse the amount before collecting the remaining expense fields.
             if (!ExpenseValidation.TryParseAmount(txtAmount.Text, out var amount))
             {
                 _inputErrors.SetError(
@@ -985,7 +979,7 @@ namespace ExpenseTracker.WinForms
 
             try
             {
-                // Lưu thay đổi nếu đang sửa; nếu không thì tạo khoản chi mới.
+                // Update the selected record in edit mode; otherwise insert a new record.
                 if (_isEditingExpense)
                 {
                     var updated = await _repository.UpdateExpenseAsync(
@@ -1000,7 +994,7 @@ namespace ExpenseTracker.WinForms
                     await _repository.AddExpenseAsync(amount, date, note, categoryId);
                 }
 
-                // Xóa trạng thái nhập liệu và tải lại bảng sau khi lưu thành công.
+                // Reset the editor and reload visible expenses after a successful save.
                 ResetExpenseEditor();
                 await LoadExpensesAsync();
             }
@@ -1010,10 +1004,10 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Xác nhận và xóa khoản chi đang chọn, sau đó làm mới danh sách.
+        // Confirms deletion of the selected expense and reloads the grid afterward.
         private async Task DeleteSelectedExpenseAsync()
         {
-            // Chỉ cho phép xóa dòng khoản chi thực, không cho xóa dòng tổng kết.
+            // Reject the display-only total row; only persisted expense rows can be deleted.
             if (dgvExpenses.CurrentRow == null)
             {
                 MessageBox.Show("Select an expense to delete.");
@@ -1028,7 +1022,7 @@ namespace ExpenseTracker.WinForms
                     return;
                 }
 
-                // Yêu cầu xác nhận trước khi thực hiện thao tác xóa không thể hoàn tác.
+                // Ask for confirmation before performing this irreversible action.
                 var confirmation = MessageBox.Show(
                     this,
                     "Delete the selected expense? This action cannot be undone.",
@@ -1041,7 +1035,7 @@ namespace ExpenseTracker.WinForms
                     return;
                 }
 
-                // Xóa bản ghi, thoát chế độ sửa nếu đang sửa chính dòng này rồi tải lại bảng.
+                // Delete the row, exit edit mode if it targets that row, and refresh the grid.
                 var deleted = await _repository.DeleteExpenseAsync(id);
                 if (_isEditingExpense && id == _editingExpenseId)
                 {
@@ -1060,7 +1054,7 @@ namespace ExpenseTracker.WinForms
             }
         }
 
-        // Ghi log lỗi database và hiển thị thông báo phù hợp với thao tác vừa thất bại.
+        // Logs a database exception and shows a message appropriate to the failed operation.
         private static void ShowDatabaseError(string operation, Exception exception)
         {
             ApplicationDiagnostics.LogFailure(operation, exception);
@@ -1074,10 +1068,10 @@ namespace ExpenseTracker.WinForms
                 MessageBoxIcon.Error);
         }
 
-        // Đưa dữ liệu của dòng đang chọn lên các ô nhập để người dùng chỉnh sửa.
+        // Copies a selected persisted expense into the editor and enters edit mode.
         private void BeginEditSelectedExpense()
         {
-            // Chỉ đưa một dòng khoản chi hợp lệ (không phải dòng tổng) vào chế độ sửa.
+            // Ignore the display-only total row and any row without a complete expense record.
             if (dgvExpenses.CurrentRow?.DataBoundItem is not ExpenseGridRow
                 {
                     Id: int id,
@@ -1099,7 +1093,7 @@ namespace ExpenseTracker.WinForms
             btnAddExpense.Text = "Save Changes";
         }
 
-        // Thoát chế độ sửa và xóa nội dung các ô nhập khoản chi.
+        // Leaves edit mode and clears the expense input fields.
         private void ResetExpenseEditor()
         {
             _isEditingExpense = false;

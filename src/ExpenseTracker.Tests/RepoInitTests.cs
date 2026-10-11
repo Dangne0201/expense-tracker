@@ -3,12 +3,14 @@ using Xunit;
 
 namespace ExpenseTracker.Tests
 {
+    // Checks that the repository's canonical SQL initialization script defines the expected tables.
     public class RepoInitTests
     {
         [Fact]
+        // Finds init.sql from the current directory and verifies its core table declarations.
         public void InitSqlContainsCategoriesTable()
         {
-            // Robustly find data/init.sql by walking upward from current directory
+            // Walk upward so the test works from both the repository and test output directories.
             var dir = Directory.GetCurrentDirectory();
             string? found = null;
             while (!string.IsNullOrEmpty(dir))

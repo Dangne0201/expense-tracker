@@ -1,7 +1,9 @@
 namespace ExpenseTracker.Core;
 
+// Maps known SQL Server error numbers to messages suitable for user-facing alerts.
 public static class DatabaseFailureMessages
 {
+    // Groups unique-key, constraint, and connectivity failures without exposing credentials.
     public static string ForOperation(string operation, int? sqlErrorNumber)
     {
         return sqlErrorNumber switch

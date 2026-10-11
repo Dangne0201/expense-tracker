@@ -5,8 +5,10 @@ using Xunit;
 
 namespace ExpenseTracker.Tests;
 
+// Covers core validation, formatting, filtering, CSV safety, and database-error mapping.
 public class ExpenseValidationTests
 {
+    // Empty totals must remain zero, while non-empty inputs are summed.
     [Fact]
     public void ExpenseTotal_sums_amounts_and_returns_zero_for_no_expenses()
     {
@@ -14,6 +16,7 @@ public class ExpenseValidationTests
         Assert.Equal(0m, ExpenseSummary.CalculateTotal(Array.Empty<decimal>()));
     }
 
+    // Currency formatting follows the active culture rather than a fixed locale.
     [Fact]
     public void ExpenseAmount_format_uses_the_current_culture_currency()
     {
@@ -34,6 +37,7 @@ public class ExpenseValidationTests
         }
     }
 
+    // Accepts valid positive amounts formatted for the current culture.
     [Fact]
     public void TryParseAmount_accepts_positive_values_in_current_culture()
     {
@@ -52,6 +56,7 @@ public class ExpenseValidationTests
         }
     }
 
+    // Group and decimal separators are interpreted using the requested culture.
     [Theory]
     [InlineData("en-US", "1,234.56", "1234.56")]
     [InlineData("vi-VN", "1.234,56", "1234.56")]
@@ -73,6 +78,7 @@ public class ExpenseValidationTests
         }
     }
 
+    // Enforces SQL DECIMAL(18,2) range and scale boundaries.
     [Theory]
     [InlineData("9999999999999999.99", true)]
     [InlineData("10000000000000000.00", false)]
@@ -92,6 +98,7 @@ public class ExpenseValidationTests
         }
     }
 
+    // Rejects blank, non-numeric, non-positive, over-precision, and out-of-range values.
     [Theory]
     [InlineData("")]
     [InlineData("0")]
@@ -104,12 +111,14 @@ public class ExpenseValidationTests
         Assert.False(ExpenseValidation.TryParseAmount(input, out _));
     }
 
+    // Matches the category-name length limit enforced by the schema.
     [Fact]
     public void CategoryName_rejects_names_longer_than_schema()
     {
         Assert.False(ExpenseValidation.IsValidCategoryName(new string('x', 201)));
     }
 
+    // Names containing only whitespace are not valid categories.
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -119,6 +128,7 @@ public class ExpenseValidationTests
         Assert.False(ExpenseValidation.IsValidCategoryName(name!));
     }
 
+    // Non-empty names are accepted, including names that callers may trim before saving.
     [Theory]
     [InlineData("Food")]
     [InlineData("  Transport  ")]
@@ -127,6 +137,7 @@ public class ExpenseValidationTests
         Assert.True(ExpenseValidation.IsValidCategoryName(name));
     }
 
+    // Date filters cannot start after their inclusive end date.
     [Fact]
     public void ExpenseFilter_rejects_a_start_date_after_the_end_date()
     {
@@ -135,6 +146,7 @@ public class ExpenseValidationTests
         Assert.Throws<ArgumentException>(filter.Validate);
     }
 
+    // Category filters accept only positive IDs when a category is selected.
     [Fact]
     public void ExpenseFilter_rejects_non_positive_category_ids()
     {
@@ -142,6 +154,7 @@ public class ExpenseValidationTests
             () => new ExpenseFilter(CategoryId: 0).Validate());
     }
 
+    // CSV output stays invariant, quotes special characters, and prefixes spreadsheet formulas.
     [Fact]
     public void CsvExport_uses_invariant_values_quotes_special_fields_and_neutralizes_formulas()
     {
@@ -164,6 +177,7 @@ public class ExpenseValidationTests
         Assert.DoesNotContain("12,50", csv);
     }
 
+    // CSV serialization preserves non-ASCII expense and category text.
     [Fact]
     public void CsvExport_preserves_unicode_text()
     {
@@ -182,6 +196,7 @@ public class ExpenseValidationTests
         Assert.Contains("Ăn uống", writer.ToString());
     }
 
+    // Known SQL errors map to useful categories without revealing connection details.
     [Theory]
     [InlineData(53, "unavailable")]
     [InlineData(10061, "unavailable")]
@@ -199,6 +214,7 @@ public class ExpenseValidationTests
         Assert.DoesNotContain("password", message, StringComparison.OrdinalIgnoreCase);
     }
 
+    // An unavailable loopback SQL Server maps to the standard database-unavailable message.
     [Fact]
     public async Task Repository_reports_unavailable_loopback_sql_server_without_credentials()
     {

@@ -2,8 +2,10 @@ using ExpenseTracker.Core;
 
 namespace ExpenseTracker.Tests;
 
+// Verifies that overview loading applies the selected category to rows and monthly totals.
 public class ExpenseOverviewServiceTests
 {
+    // The month total is scoped by month/category, not by the expense-list date range.
     [Fact]
     public async Task LoadAsync_returns_filtered_expenses_and_independent_monthly_total()
     {
@@ -26,6 +28,7 @@ public class ExpenseOverviewServiceTests
 
     private sealed class FakeExpenseRepository : IExpenseRepository
     {
+        // Fixed data and captured arguments make service orchestration observable without a database.
         public IReadOnlyList<Expense> Expenses { get; } = new[]
         {
             new Expense(1, 12.50m, new DateTime(2026, 9, 14), "Lunch", 7, "Food")
